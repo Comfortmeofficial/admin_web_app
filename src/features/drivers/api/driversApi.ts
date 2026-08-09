@@ -60,8 +60,13 @@ export const driversApi = {
     return data as Driver;
   },
 
+  setAvailable: async (id: string) => {
+    const { data } = await driverClient.put(`/api/v1/drivers/${id}`, { status: 'available' });
+    return data as Driver;
+  },
+
   assignBus: async (driverId: string, busId: string) => {
-    const { data } = await driverClient.post(`/api/v1/drivers/${driverId}/assign-bus`, { bus_id: busId });
+    const { data } = await driverClient.post(`/api/v1/drivers/${driverId}/assign-bus`, { bus_id: Number(busId) });
     return data;
   },
 
@@ -70,7 +75,7 @@ export const driversApi = {
   },
 
   assignRide: async (driverId: string, rideId: string) => {
-    const { data } = await driverClient.post(`/api/v1/drivers/${driverId}/assign-ride`, { ride_id: rideId });
+    const { data } = await driverClient.post(`/api/v1/drivers/${driverId}/assign-ride`, { ride_id: Number(rideId) });
     return data;
   },
 

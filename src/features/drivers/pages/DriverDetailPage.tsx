@@ -90,6 +90,12 @@ export function DriverDetailPage() {
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
+  const setAvailableMutation = useMutation({
+    mutationFn: () => driversApi.setAvailable(id!),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['driver', id] }); toast.success('Driver set available'); setConfirm(null); },
+    onError: (e) => toast.error('Failed', getErrorMessage(e)),
+  });
+
   const assignBusMutation = useMutation({
     mutationFn: (busId: string) => Promise.all([
       driversApi.assignBus(id!, busId),
@@ -120,12 +126,14 @@ export function DriverDetailPage() {
     else if (confirm.action === 'reject') rejectMutation.mutate();
     else if (confirm.action === 'suspend') suspendMutation.mutate();
     else if (confirm.action === 'reinstate') reinstateMutation.mutate();
+    else if (confirm.action === 'set_available') setAvailableMutation.mutate();
   };
 
   if (isLoading) return <PageSpinner />;
   if (!driver) return null;
 
-  const isPending = approveMutation.isPending || rejectMutation.isPending || suspendMutation.isPending || reinstateMutation.isPending;
+  const isPending = approveMutation.isPending || rejectMutation.isPending || suspendMutation.isPending
+    || reinstateMutation.isPending || setAvailableMutation.isPending;
 
   return (
     <div className="flex flex-col h-full">
@@ -162,6 +170,11 @@ export function DriverDetailPage() {
                 )}
                 {driver.status === 'suspended' && (
                   <Button variant="primary" size="sm" onClick={() => setConfirm({ action: 'reinstate' })}>Reinstate</Button>
+                )}
+                {driver.status === 'offline' && driver.verification_status === 'approved' && (
+                  <Button variant="primary" size="sm" icon={<Power className="w-4 h-4" />} onClick={() => setConfirm({ action: 'set_available' })}>
+                    Set Available
+                  </Button>
                 )}
               </div>
             </div>
@@ -366,7 +379,7 @@ export function DriverDetailPage() {
         onClose={() => setConfirm(null)}
         onConfirm={handleAction}
         loading={isPending}
-        confirmVariant={confirm?.action === 'approve' || confirm?.action === 'reinstate' ? 'primary' : 'danger'}
+        confirmVariant={confirm?.action === 'approve' || confirm?.action === 'reinstate' || confirm?.action === 'set_available' ? 'primary' : 'danger'}
         confirmLabel={confirm?.action ? slugToLabel(confirm.action) : 'Confirm'}
         message={`Confirm: ${confirm?.action} driver "${driver.first_name} ${driver.last_name}"?`}
       />

@@ -214,7 +214,7 @@ export interface CreateRoutePayload {
   location_id: number;
   destination_id: number;
   distance_km?: number;
-  stop_ids?: number[];
+  stops?: { stop_id: number; fare?: number }[];
 }
 
 // ─── Ride ─────────────────────────────────────────────────────────────────────
@@ -325,6 +325,27 @@ export interface CreateReferralCodePayload {
   flat_amount?: number;
   max_uses?: number;
   expiry_date?: string;
+}
+
+export type MilestoneRewardType = 'flat' | 'percentage';
+
+export interface ReferralMilestone {
+  id: string;
+  threshold: number;
+  reward_type: MilestoneRewardType;
+  reward_value: number;
+  label: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MilestoneFormValues {
+  threshold: number;
+  reward_type: MilestoneRewardType;
+  reward_value: number;
+  label: string;
+  is_active: boolean;
 }
 
 // ─── Rental ───────────────────────────────────────────────────────────────────

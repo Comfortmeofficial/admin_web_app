@@ -226,15 +226,24 @@ interface RouteFormProps {
 
 function RouteForm({ open, onClose, onSubmit, loading, locations, destinations, stops }: RouteFormProps) {
   const [selectedStopIds, setSelectedStopIds] = useState<number[]>([]);
+  const [stopFares, setStopFares] = useState<Record<number, string>>({});
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateRoutePayload>();
 
   const toggleStop = (id: number) => {
     setSelectedStopIds((prev) => prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]);
   };
 
-  const submit = handleSubmit((data) => onSubmit({ ...data, stop_ids: selectedStopIds.length ? selectedStopIds : undefined }));
+  const submit = handleSubmit((data) => onSubmit({
+    ...data,
+    stops: selectedStopIds.length
+      ? selectedStopIds.map((id) => ({
+          stop_id: id,
+          fare: stopFares[id] ? Number(stopFares[id]) : undefined,
+        }))
+      : undefined,
+  }));
 
-  const handleClose = () => { onClose(); reset(); setSelectedStopIds([]); };
+  const handleClose = () => { onClose(); reset(); setSelectedStopIds([]); setStopFares({}); };
 
   return (
     <Modal open={open} onClose={handleClose} title="Create Route" size="md"
@@ -261,22 +270,43 @@ function RouteForm({ open, onClose, onSubmit, loading, locations, destinations, 
         <Input label="Distance (km)" type="number" {...register('distance_km', { valueAsNumber: true })} />
         {stops.length > 0 && (
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Stops <span className="text-gray-400 font-normal">(optional)</span></p>
-            <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
-              {stops.map((s) => (
-                <label key={s.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedStopIds.includes(Number(s.id))}
-                    onChange={() => toggleStop(Number(s.id))}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <div className="flex items-center gap-2 min-w-0">
-                    <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    <span className="text-sm text-gray-900 truncate">{s.name}</span>
+            <p className="text-sm font-medium text-gray-700 mb-1">Pickup Stops <span className="text-gray-400 font-normal">(optional)</span></p>
+            <p className="text-xs text-gray-400 mb-2">
+              Riders can choose one of these as their pickup point instead of the main location. Set a
+              fare for a stop to charge a different price for boarding there — leave it blank to use the
+              ride's base fare.
+            </p>
+            <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
+              {stops.map((s) => {
+                const id = Number(s.id);
+                const checked = selectedStopIds.includes(id);
+                return (
+                  <div key={s.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50">
+                    <label className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleStop(id)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div className="flex items-center gap-2 min-w-0">
+                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="text-sm text-gray-900 truncate">{s.name}</span>
+                      </div>
+                    </label>
+                    {checked && (
+                      <input
+                        type="number"
+                        min={0}
+                        placeholder="Fare (₦)"
+                        value={stopFares[id] ?? ''}
+                        onChange={(e) => setStopFares((prev) => ({ ...prev, [id]: e.target.value }))}
+                        className="w-28 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    )}
                   </div>
-                </label>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

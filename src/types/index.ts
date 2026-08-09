@@ -428,12 +428,15 @@ export interface SendNotificationPayload {
 
 export type ContentStatus = 'draft' | 'published';
 
+export type TermsDocType = 'terms' | 'privacy';
+
 export interface TermsAndConditions {
   id: string;
   title: string;
   content: string;
   version: string;
   status: ContentStatus;
+  doc_type: TermsDocType;
   published_at?: string;
   created_at: string;
   updated_at: string;

@@ -10,10 +10,16 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import { formatDate, getErrorMessage, slugToLabel } from '@/lib/utils';
-import type { TermsAndConditions } from '@/types';
+import type { TermsAndConditions, TermsDocType } from '@/types';
+
+const DOC_TYPE_LABELS: Record<TermsDocType, string> = {
+  terms: 'Terms & Conditions',
+  privacy: 'Privacy Policy',
+};
 
 export function ContentPage() {
   const qc = useQueryClient();
@@ -31,7 +37,7 @@ export function ContentPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (payload: { content: string; version: string; title: string }) => {
+    mutationFn: async (payload: { content: string; version: string; title: string; doc_type: TermsDocType }) => {
       const { data } = await termsClient.post('/api/v1/terms/', payload);
       return data as TermsAndConditions;
     },
@@ -47,10 +53,13 @@ export function ContentPage() {
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<{ content: string; version: string; title: string }>();
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<{ content: string; version: string; title: string; doc_type: TermsDocType }>({
+    defaultValues: { doc_type: 'terms' },
+  });
   const submit = handleSubmit((data) => createMutation.mutate(data));
 
   const columns: Column<TermsAndConditions>[] = [
+    { key: 'doc_type', header: 'Document', cell: (r) => <Badge variant="info">{DOC_TYPE_LABELS[r.doc_type] ?? r.doc_type}</Badge> },
     { key: 'version', header: 'Version', cell: (r) => <span className="font-mono font-semibold">v{r.version}</span> },
     { key: 'title', header: 'Title', cell: (r) => r.title ?? '—' },
     {
@@ -97,11 +106,20 @@ export function ContentPage() {
         footer={<><Button variant="outline" onClick={() => { setShowCreate(false); reset(); }}>Cancel</Button><Button onClick={submit} loading={createMutation.isPending}>Create</Button></>}
       >
         <div className="flex flex-col gap-4">
+          <Select
+            label="Document"
+            required
+            options={[
+              { value: 'terms', label: 'Terms & Conditions' },
+              { value: 'privacy', label: 'Privacy Policy' },
+            ]}
+            {...register('doc_type', { required: true })}
+          />
           <div className="grid grid-cols-2 gap-4">
             <Input label="Version" required placeholder="1.0" {...register('version', { required: 'Required' })} error={errors.version?.message} />
             <Input label="Title" required placeholder="Terms & Conditions" {...register('title', { required: 'Required' })} error={errors.title?.message} />
           </div>
-          <Textarea label="Content" required rows={12} {...register('content', { required: 'Required' })} error={errors.content?.message} placeholder="Enter the full terms & conditions content…" />
+          <Textarea label="Content" required rows={12} {...register('content', { required: 'Required' })} error={errors.content?.message} placeholder="Enter the full content…" />
         </div>
       </Modal>
 
@@ -123,7 +141,7 @@ export function ContentPage() {
         loading={publishMutation.isPending}
         confirmLabel="Publish"
         confirmVariant="primary"
-        message={`Publish Terms v${publishTarget?.version}? This will replace the currently active version.`}
+        message={`Publish ${publishTarget ? DOC_TYPE_LABELS[publishTarget.doc_type] : 'this'} v${publishTarget?.version}? This replaces the currently active version of the same document — the other document is unaffected.`}
       />
     </div>
   );

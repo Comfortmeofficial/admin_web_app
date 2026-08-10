@@ -23,7 +23,7 @@ export const bookingsApi = {
     await bookingClient.delete(`/api/v1/bookings/${id}`);
   },
 
-  board: async (id: string) => {
-    await bookingClient.post(`/api/v1/bookings/${id}/board`);
+  board: async (id: string, code: string) => {
+    await bookingClient.post(`/api/v1/bookings/${id}/board`, { code });
   },
 };

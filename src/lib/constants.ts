@@ -23,6 +23,7 @@ export const ROLE_LABELS: Record<string, string> = {
   operations_manager: 'Operations Manager',
   customer_support: 'Customer Support',
   finance_officer: 'Finance Officer',
+  bus_marshal: 'Bus Marshal',
 };
 
 export const PAGE_SIZE = 20;

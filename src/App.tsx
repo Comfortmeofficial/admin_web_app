@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider } from './features/auth/context/AuthContext';
+import { AuthProvider, useAuth } from './features/auth/context/AuthContext';
 import { ToastProvider } from './components/ui/Toast';
 import { AppLayout } from './components/layout/AppLayout';
 import { AuthLayout, RequireAuth } from './components/layout/AuthLayout';
@@ -38,6 +38,17 @@ import { ReportsPage } from './features/reports/pages/ReportsPage';
 import { AuditLogsPage } from './features/audit/pages/AuditLogsPage';
 import { SettingsPage } from './features/settings/pages/SettingsPage';
 import { SupportPage } from './features/support/pages/SupportPage';
+import { MyTripPage } from './features/marshal/pages/MyTripPage';
+
+// A bus marshal's whole job in this dashboard is My Trip — everything else
+// on the general Dashboard is irrelevant to their role.
+function HomeRedirect() {
+  const { admin } = useAuth();
+  if (admin?.role === 'bus_marshal') {
+    return <Navigate to="/my-trip" replace />;
+  }
+  return <DashboardPage />;
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -93,8 +104,9 @@ export default function App() {
                   </RequireAuth>
                 }
               >
-                <Route index element={<DashboardPage />} />
+                <Route index element={<HomeRedirect />} />
                 <Route path="/admins" element={<AdminsPage />} />
+                <Route path="/my-trip" element={<MyTripPage />} />
 
                 {/* Users */}
                 <Route path="/users" element={<UsersPage />} />

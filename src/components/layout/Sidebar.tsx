@@ -21,6 +21,7 @@ import {
   LogOut,
   Truck,
   Package,
+  Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/context/AuthContext';
@@ -69,6 +70,12 @@ const navItems: NavItem[] = [
   { label: 'Settings', path: '/settings', icon: <Settings className="w-5 h-5" /> },
 ];
 
+// A bus marshal's job is scoped entirely to the trip they're conducting —
+// they get a single-purpose nav, not the full staff dashboard.
+const marshalNavItems: NavItem[] = [
+  { label: 'My Trip', path: '/my-trip', icon: <Shield className="w-5 h-5" /> },
+];
+
 interface GroupItemProps {
   item: NavItem;
   currentRole: string;
@@ -108,6 +115,7 @@ function GroupItem({ item, currentRole }: GroupItemProps) {
 
 export function Sidebar() {
   const { admin, logout } = useAuth();
+  const itemsToRender = admin?.role === 'bus_marshal' ? marshalNavItems : navItems;
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 w-60 bg-slate-900 flex flex-col">
@@ -122,7 +130,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-0.5">
-        {navItems.map((item) => {
+        {itemsToRender.map((item) => {
           if (item.children) {
             return <GroupItem key={item.label} item={item} currentRole={admin?.role ?? ''} />;
           }

@@ -39,4 +39,9 @@ export const adminsApi = {
   resetPassword: async (id: string, newPassword: string) => {
     await adminClient.post(`/api/v1/admins/${id}/reset-password`, { new_password: newPassword });
   },
+
+  listMarshals: async () => {
+    const { data } = await adminClient.get('/api/v1/admins/marshals');
+    return data as Admin[];
+  },
 };

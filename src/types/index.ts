@@ -24,7 +24,8 @@ export type AdminRole =
   | 'admin'
   | 'operations_manager'
   | 'customer_support'
-  | 'finance_officer';
+  | 'finance_officer'
+  | 'bus_marshal';
 
 export interface Admin {
   id: string;
@@ -241,6 +242,8 @@ export interface Ride {
   driver_rating?: number;
   bus_plate?: string;
   bus_model?: string;
+  marshal_admin_id?: number | null;
+  marshal_name?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -275,6 +278,31 @@ export interface Booking {
   is_on_board: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// ─── Marshal / trip chat ────────────────────────────────────────────────────
+
+export interface Passenger {
+  booking_id: number;
+  reference: string;
+  seat_number: string;
+  status: BookingStatus;
+  is_on_board: boolean;
+  pickup_stop_id: number | null;
+  user_id: number;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  email: string;
+}
+
+export interface ChatMessage {
+  id: number;
+  ride_id: number;
+  user_id: number;
+  sender_type: 'customer' | 'marshal';
+  message: string;
+  created_at: string;
 }
 
 // ─── Payment ──────────────────────────────────────────────────────────────────

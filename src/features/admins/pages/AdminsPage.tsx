@@ -22,6 +22,7 @@ const ROLE_OPTIONS = [
   { value: 'operations_manager', label: 'Operations Manager' },
   { value: 'customer_support', label: 'Customer Support' },
   { value: 'finance_officer', label: 'Finance Officer' },
+  { value: 'bus_marshal', label: 'Bus Marshal' },
 ];
 
 export function AdminsPage() {

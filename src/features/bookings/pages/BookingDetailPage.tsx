@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button';
 import { Badge, statusBadge } from '@/components/ui/Badge';
 import { PageSpinner } from '@/components/ui/Spinner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Modal } from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
 import { useToast } from '@/components/ui/Toast';
 import { formatDateTime, formatCurrency, getErrorMessage, slugToLabel } from '@/lib/utils';
 import { Card } from '@/components/ui/Tabs';
@@ -18,6 +20,8 @@ export function BookingDetailPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const [showCancel, setShowCancel] = useState(false);
+  const [showBoard, setShowBoard] = useState(false);
+  const [boardCode, setBoardCode] = useState('');
 
   const { data: booking, isLoading } = useQuery({
     queryKey: ['booking', id],
@@ -32,8 +36,13 @@ export function BookingDetailPage() {
   });
 
   const boardMutation = useMutation({
-    mutationFn: () => bookingsApi.board(id!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['booking', id] }); toast.success('Passenger boarded'); },
+    mutationFn: (code: string) => bookingsApi.board(id!, code),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['booking', id] });
+      toast.success('Passenger boarded');
+      setShowBoard(false);
+      setBoardCode('');
+    },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
@@ -59,7 +68,7 @@ export function BookingDetailPage() {
           </div>
           <div className="flex items-center gap-2">
             {!booking.is_on_board && booking.status === 'confirmed' && (
-              <Button size="sm" icon={<CheckCircle className="w-4 h-4" />} onClick={() => boardMutation.mutate()} loading={boardMutation.isPending}>
+              <Button size="sm" icon={<CheckCircle className="w-4 h-4" />} onClick={() => setShowBoard(true)}>
                 Mark On Board
               </Button>
             )}
@@ -126,6 +135,32 @@ export function BookingDetailPage() {
         message="Cancel this booking? The passenger may be eligible for a refund."
         confirmLabel="Cancel Booking"
       />
+
+      <Modal
+        open={showBoard}
+        onClose={() => { setShowBoard(false); setBoardCode(''); }}
+        title="Mark On Board"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => { setShowBoard(false); setBoardCode(''); }}>Cancel</Button>
+            <Button
+              onClick={() => boardMutation.mutate(boardCode)}
+              loading={boardMutation.isPending}
+              disabled={!boardCode.trim()}
+            >
+              Confirm
+            </Button>
+          </>
+        }
+      >
+        <Input
+          label="Boarding Code"
+          placeholder="Code shown by the driver/marshal"
+          value={boardCode}
+          onChange={(e) => setBoardCode(e.target.value)}
+        />
+      </Modal>
     </div>
   );
 }

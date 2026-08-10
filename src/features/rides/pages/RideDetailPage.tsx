@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Bus, User, Calendar, MapPin } from 'lucide-react';
+import { ArrowLeft, Bus, User, Calendar, MapPin, Shield } from 'lucide-react';
 import { ridesApi } from '../api/ridesApi';
 import { driversApi } from '@/features/drivers/api/driversApi';
+import { adminsApi } from '@/features/admins/api/adminsApi';
 import { bookingsApi } from '@/features/bookings/api/bookingsApi';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
@@ -16,7 +17,7 @@ import { useToast } from '@/components/ui/Toast';
 import { Card } from '@/components/ui/Tabs';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { formatDateTime, formatCurrency, getErrorMessage, slugToLabel } from '@/lib/utils';
-import type { Booking, Driver, RideStatus } from '@/types';
+import type { Admin, Booking, Driver, RideStatus } from '@/types';
 
 const STATUS_ACTIONS: { from: RideStatus; to: RideStatus; label: string; variant: 'primary' | 'danger' | 'outline' }[] = [
   { from: 'scheduled', to: 'boarding', label: 'Start Boarding', variant: 'primary' },
@@ -35,6 +36,8 @@ export function RideDetailPage() {
   const [confirmAction, setConfirmAction] = useState<{ to: RideStatus; label: string } | null>(null);
   const [showAssignDriver, setShowAssignDriver] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [showAssignMarshal, setShowAssignMarshal] = useState(false);
+  const [selectedMarshal, setSelectedMarshal] = useState<Admin | null>(null);
 
   const { data: ride, isLoading } = useQuery({
     queryKey: ['ride', id],
@@ -56,6 +59,12 @@ export function RideDetailPage() {
   const eligibleDrivers = allDrivers.filter(
     (d) => d.verification_status === 'approved' && d.status !== 'suspended',
   );
+
+  const { data: marshals = [] } = useQuery({
+    queryKey: ['admins', 'marshals'],
+    queryFn: () => adminsApi.listMarshals(),
+    enabled: showAssignMarshal,
+  });
 
   const statusMutation = useMutation({
     mutationFn: (status: RideStatus) => ridesApi.updateStatus(id!, status),
@@ -84,6 +93,18 @@ export function RideDetailPage() {
       setSelectedDriver(null);
     },
     onError: (e) => toast.error('Failed to assign driver', getErrorMessage(e)),
+  });
+
+  const assignMarshalMutation = useMutation({
+    mutationFn: (marshalAdminId: number | null) => ridesApi.assignMarshal(id!, marshalAdminId),
+    onSuccess: (_data, marshalAdminId) => {
+      qc.invalidateQueries({ queryKey: ['ride', id] });
+      qc.invalidateQueries({ queryKey: ['rides'] });
+      toast.success(marshalAdminId ? 'Marshal assigned' : 'Marshal removed');
+      setShowAssignMarshal(false);
+      setSelectedMarshal(null);
+    },
+    onError: (e) => toast.error('Failed to assign marshal', getErrorMessage(e)),
   });
 
   if (isLoading) return <PageSpinner />;
@@ -220,6 +241,38 @@ export function RideDetailPage() {
                 </p>
               )}
             </Card>
+
+            {/* Marshal card */}
+            <Card>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-gray-400" />
+                  <h3 className="font-semibold text-gray-900">Bus Marshal</h3>
+                </div>
+                {canEdit && (
+                  <div className="flex items-center gap-2">
+                    {ride.marshal_name && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => assignMarshalMutation.mutate(null)}
+                        loading={assignMarshalMutation.isPending}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline" onClick={() => setShowAssignMarshal(true)}>
+                      {ride.marshal_name ? 'Reassign' : 'Assign Marshal'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {ride.marshal_name ? (
+                <p className="text-sm font-medium text-gray-900">{ride.marshal_name}</p>
+              ) : (
+                <p className="text-sm text-gray-500">No marshal assigned yet.</p>
+              )}
+            </Card>
           </div>
         </div>
 
@@ -286,6 +339,42 @@ export function RideDetailPage() {
             </div>
           )}
         </div>
+      </Modal>
+
+      {/* Assign Marshal modal */}
+      <Modal
+        open={showAssignMarshal}
+        onClose={() => { setShowAssignMarshal(false); setSelectedMarshal(null); }}
+        title="Assign Bus Marshal"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => { setShowAssignMarshal(false); setSelectedMarshal(null); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => selectedMarshal && assignMarshalMutation.mutate(Number(selectedMarshal.id))}
+              loading={assignMarshalMutation.isPending}
+              disabled={!selectedMarshal}
+            >
+              Assign
+            </Button>
+          </>
+        }
+      >
+        <Select
+          label="Select Marshal"
+          value={selectedMarshal?.id ?? ''}
+          onChange={(e) => {
+            const marshal = marshals.find((m) => m.id === e.target.value) ?? null;
+            setSelectedMarshal(marshal);
+          }}
+          options={marshals.map((m) => ({
+            value: m.id,
+            label: `${m.first_name} ${m.last_name} — ${m.email}`,
+          }))}
+          placeholder={marshals.length ? 'Choose a marshal' : 'No active bus marshals yet'}
+        />
       </Modal>
 
       <ConfirmDialog

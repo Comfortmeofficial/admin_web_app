@@ -36,19 +36,37 @@ function buildBlockSeats(rows: number, cols: number): SeatDefinition[] {
   return seats;
 }
 
+function seatNumberFor(seatType: SeatType, n: number): string {
+  if (seatType === 'walkway' || seatType === 'empty') return '';
+  if (seatType === 'driver') return 'D';
+  return String(n);
+}
+
 function renumberBlockSeats(seats: SeatDefinition[]): SeatDefinition[] {
   let n = 1;
   return [...seats]
     .sort((a, b) => a.row - b.row || a.col - b.col)
-    .map((s) => ({
-      ...s,
-      seat_number:
-        s.seat_type === 'walkway' || s.seat_type === 'empty'
-          ? ''
-          : s.seat_type === 'driver'
-            ? 'D'
-            : String(n++),
-    }));
+    .map((s) => ({ ...s, seat_number: seatNumberFor(s.seat_type as SeatType, n++) }));
+}
+
+// Each block numbers its own seats starting at 1, so with more than one
+// block the same seat_number ends up on several physically different
+// seats once flattened — confusing to riders and unsafe for anything that
+// looks a seat up by number. Renumbers every block together in reading
+// order (top-to-bottom, left-to-right across the whole canvas) so numbers
+// are unique across the entire layout. Runs automatically before every
+// save; also exposed as a "Renumber All" button so admins can preview it.
+function renumberAllBlocks(blocks: SeatBlock[]): SeatBlock[] {
+  const ordered = [...blocks].sort((a, b) => a.y - b.y || a.x - b.x);
+  let n = 1;
+  const numbered = new Map<string, SeatDefinition[]>();
+  for (const b of ordered) {
+    const seats = [...b.seats]
+      .sort((a, c) => a.row - c.row || a.col - c.col)
+      .map((s) => ({ ...s, seat_number: seatNumberFor(s.seat_type as SeatType, n++) }));
+    numbered.set(b.id, seats);
+  }
+  return blocks.map((b) => ({ ...b, seats: numbered.get(b.id) ?? b.seats }));
 }
 
 let blockCounter = 0;
@@ -84,25 +102,30 @@ function flattenBlocks(blocks: SeatBlock[]): SeatLayout {
 function BlockEditor({
   block,
   activeTool,
+  isFront,
   onMove,
   onPaint,
   onResize,
   onRemove,
   onRenumber,
+  onFocus,
 }: {
   block: SeatBlock;
   activeTool: SeatType;
+  isFront: boolean;
   onMove: (id: string, x: number, y: number) => void;
   onPaint: (id: string, row: number, col: number) => void;
   onResize: (id: string, rows: number, cols: number) => void;
   onRemove: (id: string) => void;
   onRenumber: (id: string) => void;
+  onFocus: (id: string) => void;
 }) {
   const [dragging, setDragging] = useState(false);
   const dragState = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
+    onFocus(block.id);
     dragState.current = { startX: e.clientX, startY: e.clientY, origX: block.x, origY: block.y };
     setDragging(true);
 
@@ -126,9 +149,10 @@ function BlockEditor({
 
   return (
     <div
+      onPointerDownCapture={() => onFocus(block.id)}
       className={cn(
         'absolute bg-white border-2 rounded-lg shadow-sm select-none',
-        dragging ? 'border-primary-500 shadow-lg z-20' : 'border-gray-200 z-10'
+        dragging ? 'border-primary-500 shadow-lg z-30' : isFront ? 'border-gray-300 shadow-md z-20' : 'border-gray-200 z-10'
       )}
       style={{ left: (block.x - 1) * CELL, top: (block.y - 1) * CELL }}
     >
@@ -204,6 +228,7 @@ interface SeatLayoutDesignerProps {
 
 export function SeatLayoutDesigner({ blocks, onChange }: SeatLayoutDesignerProps) {
   const [activeTool, setActiveTool] = useState<SeatType>('standard');
+  const [frontId, setFrontId] = useState<string | null>(null);
 
   const updateBlock = (id: string, updater: (b: SeatBlock) => SeatBlock) => {
     onChange(blocks.map((b) => (b.id === id ? updater(b) : b)));
@@ -236,6 +261,8 @@ export function SeatLayoutDesigner({ blocks, onChange }: SeatLayoutDesignerProps
     onChange([...blocks, newBlock(nextX, 1)]);
   };
 
+  const handleRenumberAll = () => onChange(renumberAllBlocks(blocks));
+
   const canvasWidth = Math.max(420, ...blocks.map((b) => (b.x - 1 + b.cols) * CELL + 60), 0);
   const canvasHeight = Math.max(320, ...blocks.map((b) => (b.y - 1 + b.rows) * CELL + 90), 0);
 
@@ -262,11 +289,14 @@ export function SeatLayoutDesigner({ blocks, onChange }: SeatLayoutDesignerProps
           ))}
         </div>
         <Button variant="outline" size="sm" onClick={handleAddBlock}>+ Add Section</Button>
+        <Button variant="outline" size="sm" onClick={handleRenumberAll}>Renumber All</Button>
       </div>
 
       <p className="text-xs text-gray-500">
         Drag a section by its header to position it on the canvas — arrange sections to match the bus's real
-        layout (e.g. leave a gap for the aisle or door), then paint seat types inside each one.
+        layout (e.g. leave a gap for the aisle or door), then paint seat types inside each one. If two sections
+        overlap, click one to bring it to the front. Seat numbers are made unique across all sections
+        automatically when you save (or click "Renumber All" to preview it).
       </p>
 
       <div className="relative overflow-auto border border-gray-200 rounded-lg bg-gray-50" style={{ minHeight: 320 }}>
@@ -276,11 +306,13 @@ export function SeatLayoutDesigner({ blocks, onChange }: SeatLayoutDesignerProps
               key={b.id}
               block={b}
               activeTool={activeTool}
+              isFront={frontId === b.id}
               onMove={handleMove}
               onPaint={handlePaint}
               onResize={handleResize}
               onRemove={handleRemove}
               onRenumber={handleRenumber}
+              onFocus={setFrontId}
             />
           ))}
           {blocks.length === 0 && (
@@ -328,7 +360,11 @@ export function SeatLayoutConfig({ onSave, initialLayout, loading }: SeatLayoutC
           </p>
           <SeatLayoutDesigner blocks={blocks} onChange={setBlocks} />
           <div className="flex justify-end">
-            <Button onClick={() => onSave(flattenBlocks(blocks))} loading={loading} disabled={blocks.length === 0}>
+            <Button
+              onClick={() => onSave(flattenBlocks(renumberAllBlocks(blocks)))}
+              loading={loading}
+              disabled={blocks.length === 0}
+            >
               Save Layout
             </Button>
           </div>

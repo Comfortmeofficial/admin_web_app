@@ -10,7 +10,7 @@ export function DriverAuthLayout() {
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <p className="text-xl font-bold text-gray-900">Comfort Me</p>
+          <p className="text-xl font-bold text-gray-900">Comfortme</p>
           <p className="text-gray-500 text-sm mt-1">Driver Portal</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-8">

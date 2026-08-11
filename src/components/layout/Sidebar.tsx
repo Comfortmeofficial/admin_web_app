@@ -121,9 +121,9 @@ export function Sidebar() {
     <aside className="fixed inset-y-0 left-0 z-30 w-60 bg-slate-900 flex flex-col">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 h-16 border-b border-slate-700/60 flex-shrink-0">
-        <img src="/logo.png" alt="Comfort Me" className="w-8 h-8 rounded-lg object-contain" />
+        <img src="/logo.png" alt="Comfortme" className="w-8 h-8 rounded-lg object-contain" />
         <div>
-          <p className="text-white font-bold text-sm leading-none">Comfort Me</p>
+          <p className="text-white font-bold text-sm leading-none">Comfortme</p>
           <p className="text-slate-400 text-xs mt-0.5">Admin Dashboard</p>
         </div>
       </div>

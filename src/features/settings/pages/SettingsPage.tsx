@@ -46,7 +46,7 @@ export function SettingsPage() {
 function CompanySettings() {
   const { register, handleSubmit } = useForm({
     defaultValues: {
-      company_name: 'Comfort Me Transport',
+      company_name: 'Comfortme Transport',
       email: 'admin@comfortmeng.com',
       phone: '+234-800-000-0000',
       address: 'Lagos, Nigeria',

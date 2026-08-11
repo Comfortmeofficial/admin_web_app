@@ -141,18 +141,38 @@ export type BusStatus = 'active' | 'maintenance' | 'retired' | 'in_service' | 'i
 
 export type SeatType = 'standard' | 'premium' | 'disabled' | 'driver' | 'walkway' | 'empty';
 
+// row/col are 1-indexed (row 1 = first row) to match the backend and what
+// the mobile seat picker expects — the designer used to generate these
+// 0-indexed internally, which only "worked" for buses whose layout was
+// never regenerated through this screen.
 export interface SeatDefinition {
   row: number;
   col: number;
-  label: string;
+  seat_number: string;
   seat_type: SeatType;
-  is_available: boolean;
+  is_seat: boolean;
+}
+
+// A draggable section of the layout (e.g. "left side", "back row"),
+// positioned on the designer's canvas at (x, y) — both 1-indexed grid
+// units — with seats numbered locally within the section. Flattened into
+// SeatLayout.seats (translated to global row/col) before saving, so every
+// other consumer of a bus's layout only ever needs `seats`.
+export interface SeatBlock {
+  id: string;
+  label?: string;
+  x: number;
+  y: number;
+  rows: number;
+  cols: number;
+  seats: SeatDefinition[];
 }
 
 export interface SeatLayout {
   rows: number;
   cols: number;
   seats: SeatDefinition[];
+  blocks?: SeatBlock[];
 }
 
 export interface Bus {

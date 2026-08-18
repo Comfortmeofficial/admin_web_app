@@ -31,7 +31,8 @@ import { BookingDetailPage } from './features/bookings/pages/BookingDetailPage';
 import { PaymentsPage } from './features/payments/pages/PaymentsPage';
 import { ReferralsPage } from './features/referrals/pages/ReferralsPage';
 import { RentalsPage } from './features/rentals/pages/RentalsPage';
-import { PackagesPage } from './features/packages/pages/PackagesPage';
+// Packages feature disabled — see Sidebar.tsx and the /packages route below.
+// import { PackagesPage } from './features/packages/pages/PackagesPage';
 import { NotificationsPage } from './features/notifications/pages/NotificationsPage';
 import { ContentPage } from './features/content/pages/ContentPage';
 import { ReportsPage } from './features/reports/pages/ReportsPage';
@@ -135,7 +136,7 @@ export default function App() {
                 {/* Other modules */}
                 <Route path="/payments" element={<PaymentsPage />} />
                 <Route path="/rentals" element={<RentalsPage />} />
-                <Route path="/packages" element={<PackagesPage />} />
+                {/* <Route path="/packages" element={<PackagesPage />} /> */}
                 <Route path="/referrals" element={<ReferralsPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/content" element={<ContentPage />} />

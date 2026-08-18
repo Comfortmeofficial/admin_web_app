@@ -527,7 +527,7 @@ export interface DashboardStats {
   referral_usage: number;
 }
 
-export type DateRangeFilter = 'today' | 'week' | 'month' | 'year' | 'custom';
+export type DateRangeFilter = 'today' | 'week' | 'month' | 'year' | 'all' | 'custom';
 
 export interface DateRange {
   start: string;

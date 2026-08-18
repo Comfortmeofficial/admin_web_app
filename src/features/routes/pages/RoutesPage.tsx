@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, MapPin } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -34,6 +34,9 @@ export function RoutesPage() {
   const [showCreateDestination, setShowCreateDestination] = useState(false);
   const [showCreateStop, setShowCreateStop] = useState(false);
   const [deleteRoute, setDeleteRoute] = useState<Route | null>(null);
+  const [deleteStopItem, setDeleteStopItem] = useState<Stop | null>(null);
+  const [deleteLocationItem, setDeleteLocationItem] = useState<Location | null>(null);
+  const [deleteDestinationItem, setDeleteDestinationItem] = useState<Destination | null>(null);
 
   const { data: routes = [], isLoading: routesLoading } = useQuery({ queryKey: ['routes'], queryFn: () => routesApi.list() });
   const { data: locations = [] } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations });
@@ -67,6 +70,24 @@ export function RoutesPage() {
   const createStopMutation = useMutation({
     mutationFn: routesApi.createStop,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['stops'] }); toast.success('Stop created'); setShowCreateStop(false); },
+    onError: (e) => toast.error('Failed', getErrorMessage(e)),
+  });
+
+  const deleteStopMutation = useMutation({
+    mutationFn: routesApi.deleteStop,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['stops'] }); toast.success('Stop deleted'); setDeleteStopItem(null); },
+    onError: (e) => toast.error('Failed', getErrorMessage(e)),
+  });
+
+  const deleteLocationMutation = useMutation({
+    mutationFn: routesApi.deleteLocation,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['locations'] }); toast.success('Location deleted'); setDeleteLocationItem(null); },
+    onError: (e) => toast.error('Failed', getErrorMessage(e)),
+  });
+
+  const deleteDestinationMutation = useMutation({
+    mutationFn: routesApi.deleteDestination,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['destinations'] }); toast.success('Destination deleted'); setDeleteDestinationItem(null); },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
@@ -111,18 +132,48 @@ export function RoutesPage() {
     },
     { key: 'order', header: 'Order', cell: (r) => r.order ?? '—' },
     { key: 'created', header: 'Created', cell: (r) => formatDate(r.created_at) },
+    {
+      key: 'actions',
+      header: '',
+      cell: (row) => (
+        <button onClick={(e) => { e.stopPropagation(); setDeleteStopItem(row); }} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500">
+          <Trash2 className="w-4 h-4" />
+        </button>
+      ),
+      className: 'w-12',
+    },
   ];
 
   const locationColumns: Column<Location>[] = [
     { key: 'name', header: 'Name', cell: (r) => <p className="font-medium">{r.name}</p> },
     { key: 'state', header: 'State', cell: (r) => r.state ?? '—' },
     { key: 'created', header: 'Created', cell: (r) => formatDate(r.created_at) },
+    {
+      key: 'actions',
+      header: '',
+      cell: (row) => (
+        <button onClick={(e) => { e.stopPropagation(); setDeleteLocationItem(row); }} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500">
+          <Trash2 className="w-4 h-4" />
+        </button>
+      ),
+      className: 'w-12',
+    },
   ];
 
   const destinationColumns: Column<Destination>[] = [
     { key: 'name', header: 'Name', cell: (r) => <p className="font-medium">{r.name}</p> },
     { key: 'state', header: 'State', cell: (r) => r.state ?? '—' },
     { key: 'created', header: 'Created', cell: (r) => formatDate(r.created_at) },
+    {
+      key: 'actions',
+      header: '',
+      cell: (row) => (
+        <button onClick={(e) => { e.stopPropagation(); setDeleteDestinationItem(row); }} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500">
+          <Trash2 className="w-4 h-4" />
+        </button>
+      ),
+      className: 'w-12',
+    },
   ];
 
   return (
@@ -210,6 +261,30 @@ export function RoutesPage() {
         loading={deleteRouteMutation.isPending}
         message={`Delete route "${deleteRoute?.name}"?`}
       />
+
+      <ConfirmDialog
+        open={!!deleteStopItem}
+        onClose={() => setDeleteStopItem(null)}
+        onConfirm={() => deleteStopItem && deleteStopMutation.mutate(deleteStopItem.id)}
+        loading={deleteStopMutation.isPending}
+        message={`Delete stop "${deleteStopItem?.name}"?`}
+      />
+
+      <ConfirmDialog
+        open={!!deleteLocationItem}
+        onClose={() => setDeleteLocationItem(null)}
+        onConfirm={() => deleteLocationItem && deleteLocationMutation.mutate(deleteLocationItem.id)}
+        loading={deleteLocationMutation.isPending}
+        message={`Delete location "${deleteLocationItem?.name}"?`}
+      />
+
+      <ConfirmDialog
+        open={!!deleteDestinationItem}
+        onClose={() => setDeleteDestinationItem(null)}
+        onConfirm={() => deleteDestinationItem && deleteDestinationMutation.mutate(deleteDestinationItem.id)}
+        loading={deleteDestinationMutation.isPending}
+        message={`Delete destination "${deleteDestinationItem?.name}"?`}
+      />
     </div>
   );
 }
@@ -227,7 +302,45 @@ interface RouteFormProps {
 function RouteForm({ open, onClose, onSubmit, loading, locations, destinations, stops }: RouteFormProps) {
   const [selectedStopIds, setSelectedStopIds] = useState<number[]>([]);
   const [stopFares, setStopFares] = useState<Record<number, string>>({});
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateRoutePayload>();
+  const [nameTouched, setNameTouched] = useState(false);
+  const [distanceTouched, setDistanceTouched] = useState(false);
+  const [distanceLoading, setDistanceLoading] = useState(false);
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<CreateRoutePayload>();
+
+  const locationId = watch('location_id');
+  const destinationId = watch('destination_id');
+
+  // Suggests "Pickup — Destination" once both are picked, saving the admin
+  // from retyping what the two selects already say — but only until they
+  // type a name themselves, so we never clobber a manual entry.
+  useEffect(() => {
+    if (nameTouched || !locationId || !destinationId) return;
+    const pickup = locations.find((l) => l.id === String(locationId));
+    const destination = destinations.find((d) => d.id === String(destinationId));
+    if (pickup && destination) {
+      setValue('name', `${pickup.name} — ${destination.name}`, { shouldValidate: true });
+    }
+  }, [locationId, destinationId, nameTouched, locations, destinations, setValue]);
+
+  // Same idea, via Google Directions on the backend instead of a client-side
+  // string join — silently leaves the field for manual entry if the lookup
+  // fails (e.g. no Google Maps API key configured), since this is a
+  // convenience, not a requirement to create the route.
+  useEffect(() => {
+    if (distanceTouched || !locationId || !destinationId) return;
+    let cancelled = false;
+    setDistanceLoading(true);
+    routesApi.getDistance(String(locationId), String(destinationId))
+      .then((result) => {
+        if (!cancelled) setValue('distance_km', Math.round(result.distance_km * 10) / 10, { shouldValidate: true });
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setDistanceLoading(false); });
+    return () => { cancelled = true; };
+  }, [locationId, destinationId, distanceTouched, setValue]);
+
+  const nameField = register('name', { required: 'Required' });
+  const distanceField = register('distance_km', { valueAsNumber: true });
 
   const toggleStop = (id: number) => {
     setSelectedStopIds((prev) => prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]);
@@ -243,14 +356,28 @@ function RouteForm({ open, onClose, onSubmit, loading, locations, destinations, 
       : undefined,
   }));
 
-  const handleClose = () => { onClose(); reset(); setSelectedStopIds([]); setStopFares({}); };
+  const handleClose = () => {
+    onClose();
+    reset();
+    setSelectedStopIds([]);
+    setStopFares({});
+    setNameTouched(false);
+    setDistanceTouched(false);
+  };
 
   return (
     <Modal open={open} onClose={handleClose} title="Create Route" size="md"
       footer={<><Button variant="outline" onClick={handleClose} disabled={loading}>Cancel</Button><Button onClick={submit} loading={loading}>Create Route</Button></>}
     >
       <div className="flex flex-col gap-4">
-        <Input label="Route Name" required placeholder="Lagos — Abuja Express" {...register('name', { required: 'Required' })} error={errors.name?.message} />
+        <Input
+          label="Route Name"
+          required
+          placeholder="Lagos — Abuja Express"
+          {...nameField}
+          onChange={(e) => { nameField.onChange(e); setNameTouched(true); }}
+          error={errors.name?.message}
+        />
         <Select
           label="Pickup Location"
           required
@@ -267,7 +394,13 @@ function RouteForm({ open, onClose, onSubmit, loading, locations, destinations, 
           {...register('destination_id', { required: 'Required', valueAsNumber: true })}
           error={errors.destination_id?.message}
         />
-        <Input label="Distance (km)" type="number" {...register('distance_km', { valueAsNumber: true })} />
+        <Input
+          label="Distance (km)"
+          type="number"
+          hint={distanceLoading ? 'Calculating via Google Maps…' : undefined}
+          {...distanceField}
+          onChange={(e) => { distanceField.onChange(e); setDistanceTouched(true); }}
+        />
         {stops.length > 0 && (
           <div>
             <p className="text-sm font-medium text-gray-700 mb-1">Pickup Stops <span className="text-gray-400 font-normal">(optional)</span></p>

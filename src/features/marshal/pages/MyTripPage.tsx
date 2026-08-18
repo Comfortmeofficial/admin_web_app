@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import QrScanner from 'qr-scanner';
 import { Calendar, CheckCircle, MessageCircle, Phone, Send, ShieldAlert, XCircle } from 'lucide-react';
 import { ridesApi } from '@/features/rides/api/ridesApi';
 import { bookingsApi } from '@/features/bookings/api/bookingsApi';
@@ -15,12 +16,27 @@ import { Card } from '@/components/ui/Tabs';
 import { cn, formatDateTime, getErrorMessage, slugToLabel } from '@/lib/utils';
 import type { Passenger, Ride } from '@/types';
 
+// The rider's app shows a QR encoding "CMBOOKING:{booking_id}:{reference}"
+// (see BookingQRModal in customer_mobile_app) — independent of the ride's
+// shared boarding_code the driver displays. Verified server-side in
+// checkBoardingCode, which accepts either code.
+function parseBookingQr(data: string): { bookingId: number; reference: string } | null {
+  const parts = data.split(':');
+  if (parts.length < 3 || parts[0] !== 'CMBOOKING') return null;
+  const bookingId = Number(parts[1]);
+  if (!Number.isFinite(bookingId)) return null;
+  return { bookingId, reference: parts.slice(2).join(':') };
+}
+
 export function MyTripPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const [selectedRide, setSelectedRide] = useState<Ride | null>(null);
   const [boardTarget, setBoardTarget] = useState<Passenger | null>(null);
   const [boardCode, setBoardCode] = useState('');
+  const [manualEntry, setManualEntry] = useState(false);
+  const [scanFeedback, setScanFeedback] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [cancelTarget, setCancelTarget] = useState<Passenger | null>(null);
   const [chatTarget, setChatTarget] = useState<Passenger | null>(null);
 
@@ -39,16 +55,59 @@ export function MyTripPage() {
     refetchInterval: 15_000,
   });
 
+  const closeBoardModal = () => {
+    setBoardTarget(null);
+    setBoardCode('');
+    setManualEntry(false);
+    setScanFeedback(null);
+  };
+
   const boardMutation = useMutation({
     mutationFn: ({ bookingId, code }: { bookingId: string; code: string }) => bookingsApi.board(bookingId, code),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['ride-passengers', activeRide?.id] });
       toast.success('Passenger boarded');
-      setBoardTarget(null);
-      setBoardCode('');
+      closeBoardModal();
     },
-    onError: (e) => toast.error('Failed', getErrorMessage(e)),
+    onError: (e) => {
+      toast.error('Failed', getErrorMessage(e));
+      setScanFeedback(null);
+    },
   });
+
+  // Runs the camera scanner whenever the board modal is open in scan mode;
+  // torn down on close/manual-toggle so the camera light doesn't stay on.
+  useEffect(() => {
+    if (!boardTarget || manualEntry) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const scanner = new QrScanner(
+      video,
+      (result) => {
+        const parsed = parseBookingQr(result.data);
+        if (!parsed) {
+          setScanFeedback('Not a valid boarding QR code.');
+          return;
+        }
+        if (parsed.bookingId !== boardTarget.booking_id) {
+          setScanFeedback('That QR belongs to a different passenger.');
+          return;
+        }
+        setScanFeedback(null);
+        scanner.stop();
+        boardMutation.mutate({ bookingId: String(boardTarget.booking_id), code: parsed.reference });
+      },
+      { returnDetailedScanResult: true, highlightScanRegion: true, highlightCodeOutline: true },
+    );
+    scanner.start().catch(() => setScanFeedback('Camera access is needed to scan the code.'));
+
+    return () => {
+      scanner.stop();
+      scanner.destroy();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardTarget, manualEntry]);
 
   const cancelMutation = useMutation({
     mutationFn: (bookingId: string) => bookingsApi.cancel(bookingId),
@@ -171,28 +230,50 @@ export function MyTripPage() {
       {/* Board modal */}
       <Modal
         open={!!boardTarget}
-        onClose={() => { setBoardTarget(null); setBoardCode(''); }}
+        onClose={closeBoardModal}
         title={`Board ${boardTarget?.first_name ?? ''}`}
         size="sm"
         footer={
-          <>
-            <Button variant="outline" onClick={() => { setBoardTarget(null); setBoardCode(''); }}>Cancel</Button>
-            <Button
-              onClick={() => boardTarget && boardMutation.mutate({ bookingId: String(boardTarget.booking_id), code: boardCode })}
-              loading={boardMutation.isPending}
-              disabled={!boardCode.trim()}
-            >
-              Confirm
-            </Button>
-          </>
+          manualEntry ? (
+            <>
+              <Button variant="outline" onClick={closeBoardModal}>Cancel</Button>
+              <Button
+                onClick={() => boardTarget && boardMutation.mutate({ bookingId: String(boardTarget.booking_id), code: boardCode })}
+                loading={boardMutation.isPending}
+                disabled={!boardCode.trim()}
+              >
+                Confirm
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" onClick={closeBoardModal} className="w-full">Cancel</Button>
+          )
         }
       >
-        <Input
-          label="Boarding Code"
-          placeholder="Ask the passenger for their code"
-          value={boardCode}
-          onChange={(e) => setBoardCode(e.target.value)}
-        />
+        {manualEntry ? (
+          <Input
+            label="Boarding Code"
+            placeholder="Ask the passenger for their booking reference"
+            value={boardCode}
+            onChange={(e) => setBoardCode(e.target.value)}
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-sm text-gray-500 text-center">
+              Scan the QR code on {boardTarget?.first_name ?? 'the passenger'}&rsquo;s phone.
+            </p>
+            <video ref={videoRef} className="w-full aspect-square rounded-lg bg-gray-900 object-cover" />
+            {scanFeedback && <p className="text-sm text-red-600 text-center">{scanFeedback}</p>}
+            {boardMutation.isPending && <p className="text-sm text-gray-500">Confirming…</p>}
+          </div>
+        )}
+        <button
+          type="button"
+          className="mt-4 text-sm text-primary-600 font-medium text-center w-full"
+          onClick={() => { setManualEntry((v) => !v); setScanFeedback(null); }}
+        >
+          {manualEntry ? 'Scan QR code instead' : 'Enter code manually instead'}
+        </button>
       </Modal>
 
       {/* Cancel confirm */}

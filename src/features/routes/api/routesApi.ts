@@ -45,6 +45,9 @@ export const routesApi = {
     const { data } = await bookingClient.post('/api/v1/stops', payload);
     return data as Stop;
   },
+  deleteStop: async (id: string) => {
+    await bookingClient.delete(`/api/v1/stops/${id}`);
+  },
 
   // Routes
   list: async (params: { skip?: number; limit?: number } = {}) => {
@@ -58,6 +61,12 @@ export const routesApi = {
   create: async (payload: CreateRoutePayload) => {
     const { data } = await bookingClient.post('/api/v1/routes', payload);
     return data as Route;
+  },
+  getDistance: async (locationId: string, destinationId: string) => {
+    const { data } = await bookingClient.get('/api/v1/routes/distance', {
+      params: { location_id: locationId, destination_id: destinationId },
+    });
+    return data as { distance_km: number };
   },
   delete: async (id: string) => {
     await bookingClient.delete(`/api/v1/routes/${id}`);

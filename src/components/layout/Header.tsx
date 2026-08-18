@@ -1,4 +1,5 @@
 import { Bell, Search } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { ROLE_LABELS } from '@/lib/constants';
 
@@ -9,6 +10,7 @@ interface HeaderProps {
 
 export function Header({ title, subtitle }: HeaderProps) {
   const { admin } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0">
@@ -17,9 +19,11 @@ export function Header({ title, subtitle }: HeaderProps) {
         {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
       </div>
       <div className="flex items-center gap-3">
-        <button className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors relative">
+        <button
+          onClick={() => navigate('/notifications')}
+          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors relative"
+        >
           <Bell className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
         </button>
         <div className="h-6 w-px bg-gray-200" />
         <div className="flex items-center gap-2">

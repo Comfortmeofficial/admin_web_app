@@ -1,5 +1,5 @@
 import { userClient, driverClient, busClient, bookingClient, walletClient } from '@/lib/api';
-import type { DashboardStats, Ride, Booking } from '@/types';
+import type { DashboardStats, DateRangeFilter, Ride, Booking } from '@/types';
 
 const LARGE = 1000;
 
@@ -8,25 +8,74 @@ const safeArray = <T>(res: PromiseSettledResult<{ data: unknown }>): T[] => {
   return [];
 };
 
+// Mirrors the bucket windows wallet_service's /analytics endpoint uses, so
+// the stat cards and the charts below them agree on what "This Week" etc.
+// actually spans.
+function sinceFor(range: DateRangeFilter): Date | null {
+  const now = new Date();
+  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  if (range === 'today') return todayStart;
+  if (range === 'week') return new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
+  if (range === 'year') {
+    const d = new Date(todayStart);
+    d.setUTCMonth(d.getUTCMonth() - 11);
+    return d;
+  }
+  if (range === 'all') return null;
+  return new Date(todayStart.getTime() - 29 * 24 * 60 * 60 * 1000); // month / custom
+}
+
+function filterSince<T>(items: T[], since: Date | null, getDate: (item: T) => string): T[] {
+  if (!since) return items;
+  return items.filter((item) => new Date(getDate(item)) >= since);
+}
+
 export const dashboardApi = {
-  getStats: async (): Promise<DashboardStats> => {
-    const [usersRes, driversRes, busesRes, ridesRes, bookingsRes] = await Promise.allSettled([
+  getStats: async (range: DateRangeFilter = 'month'): Promise<DashboardStats> => {
+    const [usersRes, driversRes, busesRes, ridesRes, bookingsRes, revenueRes] = await Promise.allSettled([
       userClient.get('/api/v1/users/', { params: { skip: 0, limit: LARGE } }),
       driverClient.get('/api/v1/drivers/', { params: { skip: 0, limit: LARGE } }),
       busClient.get('/api/v1/buses', { params: { limit: LARGE } }),
       bookingClient.get('/api/v1/rides', { params: { skip: 0, limit: LARGE } }),
       bookingClient.get('/api/v1/bookings/all', { params: { skip: 0, limit: LARGE } }),
+      walletClient.get('/api/v1/wallet/analytics', { params: { range } }),
     ]);
 
-    const users = safeArray(usersRes as PromiseSettledResult<{ data: unknown }>);
-    const drivers = safeArray(driversRes as PromiseSettledResult<{ data: unknown }>);
-    const buses = safeArray(busesRes as PromiseSettledResult<{ data: unknown }>);
-    const rides = safeArray<Ride>(ridesRes as PromiseSettledResult<{ data: unknown }>);
-    const bookings = safeArray<Booking>(bookingsRes as PromiseSettledResult<{ data: unknown }>);
-
-    const revenue = rides
-      .filter((r) => r.status === 'completed')
-      .reduce((sum, r) => sum + r.fare * r.booked_seats, 0);
+    const since = sinceFor(range);
+    const users = filterSince(
+      safeArray<{ created_at: string }>(usersRes as PromiseSettledResult<{ data: unknown }>),
+      since,
+      (u) => u.created_at,
+    );
+    const drivers = filterSince(
+      safeArray<{ created_at: string }>(driversRes as PromiseSettledResult<{ data: unknown }>),
+      since,
+      (d) => d.created_at,
+    );
+    const buses = filterSince(
+      safeArray<{ created_at: string }>(busesRes as PromiseSettledResult<{ data: unknown }>),
+      since,
+      (b) => b.created_at,
+    );
+    // Rides are anchored to when they depart, not when the row was created —
+    // "Scheduled Rides This Week" means rides leaving this week.
+    const rides = filterSince(
+      safeArray<Ride>(ridesRes as PromiseSettledResult<{ data: unknown }>),
+      since,
+      (r) => r.departure_time,
+    );
+    const bookings = filterSince(
+      safeArray<Booking>(bookingsRes as PromiseSettledResult<{ data: unknown }>),
+      since,
+      (b) => b.created_at,
+    );
+    // Sourced from wallet_service's actual successful transactions (same
+    // data the revenue chart uses), not ride fares — a ride only counts
+    // toward revenue once its status flips to "completed", which understates
+    // (often to zero) money already collected for active/scheduled rides.
+    // The endpoint is already scoped server-side to the same `range`.
+    const revenueBuckets = safeArray<{ revenue: number }>(revenueRes as PromiseSettledResult<{ data: unknown }>);
+    const revenue = revenueBuckets.reduce((sum, b) => sum + (b.revenue ?? 0), 0);
 
     return {
       total_users: users.length,

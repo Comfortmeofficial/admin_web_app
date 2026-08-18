@@ -20,14 +20,15 @@ const RANGE_OPTIONS: { label: string; value: DateRangeFilter }[] = [
   { label: 'This Week', value: 'week' },
   { label: 'This Month', value: 'month' },
   { label: 'This Year', value: 'year' },
+  { label: 'All Time', value: 'all' },
 ];
 
 export function DashboardPage() {
   const [range, setRange] = useState<DateRangeFilter>('month');
 
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['dashboard-stats'],
-    queryFn: dashboardApi.getStats,
+    queryKey: ['dashboard-stats', range],
+    queryFn: () => dashboardApi.getStats(range),
     staleTime: 60_000,
   });
 

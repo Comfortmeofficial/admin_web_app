@@ -65,6 +65,11 @@ export const driversApi = {
     return data as Driver;
   },
 
+  setUnavailable: async (id: string) => {
+    const { data } = await driverClient.put(`/api/v1/drivers/${id}`, { status: 'offline' });
+    return data as Driver;
+  },
+
   assignBus: async (driverId: string, busId: string) => {
     const { data } = await driverClient.post(`/api/v1/drivers/${driverId}/assign-bus`, { bus_id: Number(busId) });
     return data;

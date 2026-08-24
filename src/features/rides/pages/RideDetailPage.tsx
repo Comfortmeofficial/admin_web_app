@@ -366,7 +366,7 @@ export function RideDetailPage() {
           label="Select Marshal"
           value={selectedMarshal?.id ?? ''}
           onChange={(e) => {
-            const marshal = marshals.find((m) => m.id === e.target.value) ?? null;
+            const marshal = marshals.find((m) => String(m.id) === e.target.value) ?? null;
             setSelectedMarshal(marshal);
           }}
           options={marshals.map((m) => ({

@@ -61,7 +61,19 @@ function PackageRow({ pkg, rideId }: { pkg: DriverPackage; rideId: number }) {
 export function DriverHomePage() {
   const { driver } = useDriverAuth();
   const [showCode, setShowCode] = useState(false);
-  const rideId = driver?.current_ride_id ?? null;
+
+  // The login-time snapshot in DriverAuthContext is never refreshed for the
+  // rest of the session, so a ride assigned after login would never show up
+  // without this — used as the initial paint (avoids a loading flash) but
+  // superseded by `me` as soon as it resolves.
+  const { data: me } = useQuery({
+    queryKey: ['driver-portal-me'],
+    queryFn: () => driverPortalApi.me(),
+    enabled: !!driver,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+  const rideId = me?.current_ride_id ?? driver?.current_ride_id ?? null;
 
   const { data: ride } = useQuery({
     queryKey: ['driver-portal-ride', rideId],

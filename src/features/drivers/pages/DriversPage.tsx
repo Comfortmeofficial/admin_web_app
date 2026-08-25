@@ -83,7 +83,8 @@ export function DriversPage() {
   const filtered = drivers.filter((d) => {
     const matchesSearch = `${d.first_name} ${d.last_name} ${d.email} ${d.phone} ${d.license_number}`
       .toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusTab === 'all' || d.verification_status === statusTab;
+    const matchesStatus = statusTab === 'all'
+      || (statusTab === 'suspended' ? d.status === 'suspended' : d.verification_status === statusTab);
     return matchesSearch && matchesStatus;
   });
 

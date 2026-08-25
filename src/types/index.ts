@@ -95,8 +95,7 @@ export type DriverVerificationStatus =
   | 'pending'
   | 'under_review'
   | 'approved'
-  | 'rejected'
-  | 'suspended';
+  | 'rejected';
 
 export interface Driver {
   id: string;
@@ -116,8 +115,7 @@ export interface Driver {
   rating?: number;
   total_trips?: number;
   assigned_bus_id?: string;
-  assigned_ride_id?: string;
-  photo_url?: string;
+  current_ride_id?: string;
   created_at: string;
   updated_at: string;
 }

@@ -79,7 +79,6 @@ export function RideDetailPage() {
 
   const assignDriverMutation = useMutation({
     mutationFn: async (driver: Driver) => {
-      await driversApi.assignRide(driver.id, id!);
       await ridesApi.assignDriver(id!, driver.id);
       if (driver.assigned_bus_id) {
         await ridesApi.assignBus(id!, driver.assigned_bus_id);

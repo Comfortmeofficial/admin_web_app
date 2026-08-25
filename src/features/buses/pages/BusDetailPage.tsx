@@ -44,10 +44,7 @@ export function BusDetailPage() {
   });
 
   const assignDriverMutation = useMutation({
-    mutationFn: (driverId: string) => Promise.all([
-      busesApi.assignDriver(id!, driverId),
-      driversApi.assignBus(driverId, id!),
-    ]),
+    mutationFn: (driverId: string) => busesApi.assignDriver(id!, driverId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bus', id] });
       toast.success('Driver assigned');
@@ -58,10 +55,7 @@ export function BusDetailPage() {
   });
 
   const unassignDriverMutation = useMutation({
-    mutationFn: () => Promise.all([
-      busesApi.unassignDriver(id!),
-      ...(bus?.driver_id ? [driversApi.removeBus(bus.driver_id)] : []),
-    ]),
+    mutationFn: () => busesApi.unassignDriver(id!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bus', id] });
       toast.success('Driver removed');

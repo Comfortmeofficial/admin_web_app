@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowLeft, Mail, Phone, MapPin, AlertCircle, Car, Star,
-  Calendar, FileText, CheckCircle, XCircle, Power
+  ArrowLeft, Mail, Phone, MapPin, Car, Star,
+  Calendar, CheckCircle, XCircle, Power
 } from 'lucide-react';
 import { driversApi } from '../api/driversApi';
 import { busesApi } from '@/features/buses/api/busesApi';
@@ -24,7 +24,6 @@ import type { Driver } from '@/types';
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
-  { key: 'documents', label: 'Documents' },
   { key: 'performance', label: 'Performance' },
   { key: 'assignment', label: 'Assignment' },
 ];
@@ -103,25 +102,19 @@ export function DriverDetailPage() {
   });
 
   const assignBusMutation = useMutation({
-    mutationFn: (busId: string) => Promise.all([
-      driversApi.assignBus(id!, busId),
-      busesApi.assignDriver(busId, id!),
-    ]),
+    mutationFn: (busId: string) => busesApi.assignDriver(busId, id!),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['driver', id] }); toast.success('Bus assigned'); setShowAssignBus(false); },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
   const removeBusMutation = useMutation({
-    mutationFn: () => Promise.all([
-      driversApi.removeBus(id!),
-      ...(driver?.assigned_bus_id ? [busesApi.unassignDriver(driver.assigned_bus_id)] : []),
-    ]),
+    mutationFn: () => busesApi.unassignDriver(driver!.assigned_bus_id!),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['driver', id] }); toast.success('Bus removed'); },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
   const assignRideMutation = useMutation({
-    mutationFn: (rideId: string) => driversApi.assignRide(id!, rideId),
+    mutationFn: (rideId: string) => ridesApi.assignDriver(rideId, id!),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['driver', id] }); toast.success('Ride assigned'); setShowAssignRide(false); },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
@@ -243,33 +236,6 @@ export function DriverDetailPage() {
           </div>
         )}
 
-        {tab === 'documents' && (
-          <Card>
-            <h3 className="font-semibold text-gray-900 mb-4">Driver Documents</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                { label: 'Driver License', icon: <FileText className="w-5 h-5 text-primary-600" />, status: 'uploaded' },
-                { label: 'National ID', icon: <FileText className="w-5 h-5 text-primary-600" />, status: driver.license_number ? 'uploaded' : 'missing' },
-                { label: 'Medical Certificate', icon: <AlertCircle className="w-5 h-5 text-amber-500" />, status: 'pending' },
-                { label: 'Profile Photo', icon: <FileText className="w-5 h-5 text-primary-600" />, status: driver.photo_url ? 'uploaded' : 'missing' },
-              ].map((doc) => (
-                <div key={doc.label} className="flex items-center gap-3 p-4 rounded-lg border border-gray-200">
-                  <div className="flex-shrink-0">{doc.icon}</div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{doc.label}</p>
-                    <Badge variant={doc.status === 'uploaded' ? 'success' : doc.status === 'pending' ? 'warning' : 'danger'} className="mt-1">
-                      {slugToLabel(doc.status)}
-                    </Badge>
-                  </div>
-                  <Button variant="outline" size="sm">
-                    {doc.status === 'uploaded' ? 'View' : 'Upload'}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
         {tab === 'performance' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
@@ -316,12 +282,12 @@ export function DriverDetailPage() {
                 <h3 className="font-semibold text-gray-900">Ride Assignment</h3>
                 <Button size="sm" onClick={() => setShowAssignRide(true)}>Assign Ride</Button>
               </div>
-              {driver.assigned_ride_id ? (
+              {driver.current_ride_id ? (
                 <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
                   <Calendar className="w-5 h-5 text-green-600" />
                   <div>
                     <p className="text-sm font-medium text-gray-900">On active ride</p>
-                    <p className="text-xs text-gray-500">{driver.assigned_ride_id}</p>
+                    <p className="text-xs text-gray-500">{driver.current_ride_id}</p>
                   </div>
                 </div>
               ) : (

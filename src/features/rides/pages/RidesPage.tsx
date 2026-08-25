@@ -5,6 +5,7 @@ import { Plus, MoreVertical, Eye } from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
 import { ridesApi } from '../api/ridesApi';
 import { routesApi } from '@/features/routes/api/routesApi';
+import { RouteFields, emptyRouteDraft } from '@/features/routes/components/RouteFields';
 import { busesApi } from '@/features/buses/api/busesApi';
 import { driversApi } from '@/features/drivers/api/driversApi';
 import { Header } from '@/components/layout/Header';
@@ -20,7 +21,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { useToast } from '@/components/ui/Toast';
 import { formatDateTime, formatCurrency, getErrorMessage, slugToLabel } from '@/lib/utils';
 import { PAGE_SIZE } from '@/lib/constants';
-import type { Ride, CreateRidePayload, RideStatus } from '@/types';
+import type { Ride, CreateRidePayload, CreateRoutePayload, RideStatus } from '@/types';
 
 const STATUS_TABS = [
   { key: 'all', label: 'All' },
@@ -159,37 +160,39 @@ interface RideFormProps {
 }
 
 function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
-  const { data: routes = [] } = useQuery({ queryKey: ['routes'], queryFn: () => routesApi.list() });
+  const { data: locations = [] } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations });
+  const { data: destinations = [] } = useQuery({ queryKey: ['destinations'], queryFn: routesApi.listDestinations });
+  const { data: stops = [] } = useQuery({ queryKey: ['stops'], queryFn: routesApi.listStops });
   const { data: buses = [] } = useQuery({ queryKey: ['buses'], queryFn: busesApi.list });
   const { data: allDrivers = [] } = useQuery({ queryKey: ['drivers'], queryFn: () => driversApi.list() });
   const drivers = allDrivers.filter((d) => d.verification_status === 'approved' && d.status !== 'suspended');
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateRidePayload>();
+  const [route, setRoute] = useState<CreateRoutePayload>(emptyRouteDraft());
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<Omit<CreateRidePayload, 'route'>>();
   const toRFC3339 = (dt: string) => dt ? new Date(dt).toISOString() : undefined;
   const submit = handleSubmit((data) => onSubmit({
     ...data,
+    route,
     fare: Number(data.fare),
-    total_seats: Number(data.total_seats),
     departure_time: toRFC3339(data.departure_time)!,
     arrival_time: data.arrival_time ? toRFC3339(data.arrival_time) : undefined,
   }));
 
+  const handleClose = () => { onClose(); reset(); setRoute(emptyRouteDraft()); };
+
   return (
-    <Modal open={open} onClose={() => { onClose(); reset(); }} title="Create Ride" size="xl"
-      footer={<><Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button><Button onClick={submit} loading={loading}>Create Ride</Button></>}
+    <Modal open={open} onClose={handleClose} title="Create Ride" size="xl"
+      footer={<><Button variant="outline" onClick={handleClose} disabled={loading}>Cancel</Button><Button onClick={submit} loading={loading}>Create Ride</Button></>}
     >
       <div className="grid grid-cols-1 gap-4">
-        <Select label="Route" required options={routes.map((r) => ({ value: r.id, label: r.name }))} placeholder="Select route" {...register('route_id', { required: 'Required', valueAsNumber: true })} error={errors.route_id?.message} />
+        <RouteFields value={route} onChange={setRoute} locations={locations} destinations={destinations} stops={stops} />
         <Select label="Bus" required options={buses.map((b) => ({ value: b.id, label: `${b.plate_number} — ${b.model}` }))} placeholder="Select bus" {...register('bus_id', { required: 'Required', valueAsNumber: true })} error={errors.bus_id?.message} />
         <Select label="Driver" required options={drivers.map((d) => ({ value: d.id, label: `${d.first_name} ${d.last_name}` }))} placeholder="Select driver" {...register('driver_id', { required: 'Required', valueAsNumber: true })} error={errors.driver_id?.message} />
         <div className="grid grid-cols-2 gap-3">
           <Input label="Departure Time" type="datetime-local" required {...register('departure_time', { required: 'Required' })} error={errors.departure_time?.message} />
           <Input label="Arrival Time (optional)" type="datetime-local" {...register('arrival_time')} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="Fare (₦)" type="number" required {...register('fare', { required: 'Required' })} error={errors.fare?.message} />
-          <Input label="Total Seats" type="number" required {...register('total_seats', { required: 'Required' })} error={errors.total_seats?.message} />
-        </div>
+        <Input label="Fare (₦)" type="number" required {...register('fare', { required: 'Required' })} error={errors.fare?.message} />
       </div>
     </Modal>
   );

@@ -226,6 +226,8 @@ export interface Route {
   destination_id: string;
   distance_km?: number;
   stops?: Stop[];
+  location?: Location;
+  destination?: Destination;
   created_at: string;
   updated_at: string;
 }
@@ -264,18 +266,62 @@ export interface Ride {
   bus_model?: string;
   marshal_admin_id?: number | null;
   marshal_name?: string | null;
+  schedule_id?: number | null;
+  route?: Route;
   created_at: string;
   updated_at: string;
 }
 
+// Ride creation no longer picks an existing route — it always creates a
+// fresh, ride-specific one from these fields, so there's no separate
+// "manage routes" step to leave the form for.
 export interface CreateRidePayload {
-  route_id: number;
+  route: CreateRoutePayload;
   bus_id: number;
   driver_id: number;
   departure_time: string;
   arrival_time?: string;
   fare: number;
-  total_seats: number;
+}
+
+// ─── Ride Schedule (recurring rides) ───────────────────────────────────────────
+
+export type RideScheduleStatus = 'active' | 'paused';
+
+export interface RideSchedule {
+  id: string;
+  bus_id: string;
+  driver_id: string;
+  route_name: string;
+  location_id: string;
+  destination_id: string;
+  distance_km: number;
+  stops: { stop_id: number; fare: number | null }[];
+  fare: number;
+  departure_time_of_day: string;
+  duration_minutes?: number | null;
+  days_of_week: number[];
+  start_date: string;
+  end_date?: string | null;
+  status: RideScheduleStatus;
+  bus_plate?: string;
+  driver_name?: string;
+  location?: Location;
+  destination?: Destination;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateRideSchedulePayload {
+  bus_id: number;
+  driver_id: number;
+  route: CreateRoutePayload;
+  fare: number;
+  departure_time_of_day: string;
+  duration_minutes?: number;
+  days_of_week: number[];
+  start_date: string;
+  end_date?: string | null;
 }
 
 // ─── Booking ──────────────────────────────────────────────────────────────────

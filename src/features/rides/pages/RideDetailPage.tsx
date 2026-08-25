@@ -175,7 +175,7 @@ export function RideDetailPage() {
                 ['Arrival', ride.arrival_time && !ride.arrival_time.startsWith('0001') ? formatDateTime(ride.arrival_time) : '—'],
                 ['Fare', formatCurrency(ride.fare)],
                 ['Seats Booked', `${ride.booked_seats} / ${ride.total_seats}`],
-                ['Route ID', ride.route_id],
+                ['Route', ride.route ? `${ride.route.location?.name ?? '—'} → ${ride.route.destination?.name ?? '—'}` : ride.route_id],
                 ['Created', formatDateTime(ride.created_at)],
               ].map(([label, value]) => (
                 <div key={label as string} className="flex justify-between gap-4 items-center">

@@ -119,6 +119,15 @@ export function MyTripPage() {
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
+  const endTripMutation = useMutation({
+    mutationFn: (rideId: string) => ridesApi.endTrip(rideId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rides', 'mine'] });
+      toast.success('Trip ended');
+    },
+    onError: (e) => toast.error('Failed', getErrorMessage(e)),
+  });
+
   if (isLoading) return <PageSpinner />;
 
   if (rides.length === 0) {
@@ -173,7 +182,19 @@ export function MyTripPage() {
                 </p>
               </div>
             </div>
-            <Badge variant={statusBadge(activeRide.status)} dot>{slugToLabel(activeRide.status)}</Badge>
+            <div className="flex items-center gap-3">
+              <Badge variant={statusBadge(activeRide.status)} dot>{slugToLabel(activeRide.status)}</Badge>
+              {activeRide.status === 'active' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  loading={endTripMutation.isPending}
+                  onClick={() => endTripMutation.mutate(activeRide.id)}
+                >
+                  End Trip
+                </Button>
+              )}
+            </div>
           </Card>
         )}
 

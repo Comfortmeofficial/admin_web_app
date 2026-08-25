@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, MapPin } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -9,16 +9,18 @@ import { Table, type Column } from '@/components/ui/Table';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Tabs } from '@/components/ui/Tabs';
-import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import { formatDate, getErrorMessage } from '@/lib/utils';
-import type { Route, Location, Destination, Stop, CreateRoutePayload } from '@/types';
+import type { Location, Destination, Stop } from '@/types';
 
+// Routes stopped being a separate, reusable, admin-managed entity — ride
+// creation and recurring schedules now each create their own route inline
+// (see RouteFields), so there's nothing left to list/manage here. Stops,
+// Locations, and Destinations remain — genuinely reusable pick-lists,
+// unrelated to that change.
 const TABS = [
-  { key: 'routes', label: 'Routes' },
   { key: 'stops', label: 'Stops' },
   { key: 'locations', label: 'Locations' },
   { key: 'destinations', label: 'Destinations' },
@@ -27,33 +29,18 @@ const TABS = [
 export function RoutesPage() {
   const qc = useQueryClient();
   const toast = useToast();
-  const [tab, setTab] = useState('routes');
+  const [tab, setTab] = useState('stops');
   const [search, setSearch] = useState('');
-  const [showCreateRoute, setShowCreateRoute] = useState(false);
   const [showCreateLocation, setShowCreateLocation] = useState(false);
   const [showCreateDestination, setShowCreateDestination] = useState(false);
   const [showCreateStop, setShowCreateStop] = useState(false);
-  const [deleteRoute, setDeleteRoute] = useState<Route | null>(null);
   const [deleteStopItem, setDeleteStopItem] = useState<Stop | null>(null);
   const [deleteLocationItem, setDeleteLocationItem] = useState<Location | null>(null);
   const [deleteDestinationItem, setDeleteDestinationItem] = useState<Destination | null>(null);
 
-  const { data: routes = [], isLoading: routesLoading } = useQuery({ queryKey: ['routes'], queryFn: () => routesApi.list() });
   const { data: locations = [] } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations });
   const { data: destinations = [] } = useQuery({ queryKey: ['destinations'], queryFn: routesApi.listDestinations });
   const { data: stops = [], isLoading: stopsLoading } = useQuery({ queryKey: ['stops'], queryFn: routesApi.listStops });
-
-  const createRouteMutation = useMutation({
-    mutationFn: routesApi.create,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['routes'] }); toast.success('Route created'); setShowCreateRoute(false); },
-    onError: (e) => toast.error('Failed', getErrorMessage(e)),
-  });
-
-  const deleteRouteMutation = useMutation({
-    mutationFn: routesApi.delete,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['routes'] }); toast.success('Route deleted'); setDeleteRoute(null); },
-    onError: (e) => toast.error('Failed', getErrorMessage(e)),
-  });
 
   const createLocationMutation = useMutation({
     mutationFn: routesApi.createLocation,
@@ -90,34 +77,6 @@ export function RoutesPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['destinations'] }); toast.success('Destination deleted'); setDeleteDestinationItem(null); },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
-
-  const filteredRoutes = routes.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()));
-
-  const routeColumns: Column<Route>[] = [
-    {
-      key: 'route',
-      header: 'Route',
-      cell: (row) => (
-        <div>
-          <p className="font-medium text-gray-900">{row.name}</p>
-          <p className="text-xs text-gray-500">{row.id}</p>
-        </div>
-      ),
-    },
-    { key: 'distance', header: 'Distance', cell: (r) => r.distance_km ? `${r.distance_km} km` : '—' },
-    { key: 'stops', header: 'Stops', cell: (r) => r.stops?.length ? <Badge variant="info">{r.stops.length} stops</Badge> : '—' },
-    { key: 'created', header: 'Created', cell: (r) => formatDate(r.created_at) },
-    {
-      key: 'actions',
-      header: '',
-      cell: (row) => (
-        <button onClick={(e) => { e.stopPropagation(); setDeleteRoute(row); }} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500">
-          <Trash2 className="w-4 h-4" />
-        </button>
-      ),
-      className: 'w-12',
-    },
-  ];
 
   const stopColumns: Column<Stop>[] = [
     {
@@ -187,24 +146,19 @@ export function RoutesPage() {
               <Tabs tabs={TABS} active={tab} onChange={setTab} className="border-0" />
             </div>
             <div className="flex items-center gap-3">
-              {tab === 'routes' && <SearchInput value={search} onChange={setSearch} placeholder="Search routes…" className="w-48" />}
               <Button
                 icon={<Plus className="w-4 h-4" />}
                 onClick={() => {
-                  if (tab === 'routes') setShowCreateRoute(true);
-                  else if (tab === 'stops') setShowCreateStop(true);
+                  if (tab === 'stops') setShowCreateStop(true);
                   else if (tab === 'locations') setShowCreateLocation(true);
                   else setShowCreateDestination(true);
                 }}
               >
-                Add {tab === 'routes' ? 'Route' : tab === 'stops' ? 'Stop' : tab === 'locations' ? 'Location' : 'Destination'}
+                Add {tab === 'stops' ? 'Stop' : tab === 'locations' ? 'Location' : 'Destination'}
               </Button>
             </div>
           </div>
 
-          {tab === 'routes' && (
-            <Table columns={routeColumns} data={filteredRoutes} loading={routesLoading} rowKey={(r) => r.id} emptyMessage="No routes defined" />
-          )}
           {tab === 'stops' && (
             <Table columns={stopColumns} data={stops} loading={stopsLoading} rowKey={(r) => r.id} emptyMessage="No stops defined" />
           )}
@@ -216,17 +170,6 @@ export function RoutesPage() {
           )}
         </div>
       </div>
-
-      {/* Route form */}
-      <RouteForm
-        open={showCreateRoute}
-        onClose={() => setShowCreateRoute(false)}
-        onSubmit={(p) => createRouteMutation.mutate(p)}
-        loading={createRouteMutation.isPending}
-        locations={locations}
-        destinations={destinations}
-        stops={stops}
-      />
 
       {/* Location form */}
       <SimpleNameForm
@@ -255,14 +198,6 @@ export function RoutesPage() {
       />
 
       <ConfirmDialog
-        open={!!deleteRoute}
-        onClose={() => setDeleteRoute(null)}
-        onConfirm={() => deleteRoute && deleteRouteMutation.mutate(deleteRoute.id)}
-        loading={deleteRouteMutation.isPending}
-        message={`Delete route "${deleteRoute?.name}"?`}
-      />
-
-      <ConfirmDialog
         open={!!deleteStopItem}
         onClose={() => setDeleteStopItem(null)}
         onConfirm={() => deleteStopItem && deleteStopMutation.mutate(deleteStopItem.id)}
@@ -286,165 +221,6 @@ export function RoutesPage() {
         message={`Delete destination "${deleteDestinationItem?.name}"?`}
       />
     </div>
-  );
-}
-
-interface RouteFormProps {
-  open: boolean;
-  onClose: () => void;
-  onSubmit: (p: CreateRoutePayload) => void;
-  loading?: boolean;
-  locations: Location[];
-  destinations: Destination[];
-  stops: Stop[];
-}
-
-function RouteForm({ open, onClose, onSubmit, loading, locations, destinations, stops }: RouteFormProps) {
-  const [selectedStopIds, setSelectedStopIds] = useState<number[]>([]);
-  const [stopFares, setStopFares] = useState<Record<number, string>>({});
-  const [nameTouched, setNameTouched] = useState(false);
-  const [distanceTouched, setDistanceTouched] = useState(false);
-  const [distanceLoading, setDistanceLoading] = useState(false);
-  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<CreateRoutePayload>();
-
-  const locationId = watch('location_id');
-  const destinationId = watch('destination_id');
-
-  // Suggests "Pickup — Destination" once both are picked, saving the admin
-  // from retyping what the two selects already say — but only until they
-  // type a name themselves, so we never clobber a manual entry.
-  useEffect(() => {
-    if (nameTouched || !locationId || !destinationId) return;
-    const pickup = locations.find((l) => l.id === String(locationId));
-    const destination = destinations.find((d) => d.id === String(destinationId));
-    if (pickup && destination) {
-      setValue('name', `${pickup.name} — ${destination.name}`, { shouldValidate: true });
-    }
-  }, [locationId, destinationId, nameTouched, locations, destinations, setValue]);
-
-  // Same idea, via Google Directions on the backend instead of a client-side
-  // string join — silently leaves the field for manual entry if the lookup
-  // fails (e.g. no Google Maps API key configured), since this is a
-  // convenience, not a requirement to create the route.
-  useEffect(() => {
-    if (distanceTouched || !locationId || !destinationId) return;
-    let cancelled = false;
-    setDistanceLoading(true);
-    routesApi.getDistance(String(locationId), String(destinationId))
-      .then((result) => {
-        if (!cancelled) setValue('distance_km', Math.round(result.distance_km * 10) / 10, { shouldValidate: true });
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setDistanceLoading(false); });
-    return () => { cancelled = true; };
-  }, [locationId, destinationId, distanceTouched, setValue]);
-
-  const nameField = register('name', { required: 'Required' });
-  const distanceField = register('distance_km', { valueAsNumber: true });
-
-  const toggleStop = (id: number) => {
-    setSelectedStopIds((prev) => prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]);
-  };
-
-  const submit = handleSubmit((data) => onSubmit({
-    ...data,
-    stops: selectedStopIds.length
-      ? selectedStopIds.map((id) => ({
-          stop_id: id,
-          fare: stopFares[id] ? Number(stopFares[id]) : undefined,
-        }))
-      : undefined,
-  }));
-
-  const handleClose = () => {
-    onClose();
-    reset();
-    setSelectedStopIds([]);
-    setStopFares({});
-    setNameTouched(false);
-    setDistanceTouched(false);
-  };
-
-  return (
-    <Modal open={open} onClose={handleClose} title="Create Route" size="md"
-      footer={<><Button variant="outline" onClick={handleClose} disabled={loading}>Cancel</Button><Button onClick={submit} loading={loading}>Create Route</Button></>}
-    >
-      <div className="flex flex-col gap-4">
-        <Input
-          label="Route Name"
-          required
-          placeholder="Lagos — Abuja Express"
-          {...nameField}
-          onChange={(e) => { nameField.onChange(e); setNameTouched(true); }}
-          error={errors.name?.message}
-        />
-        <Select
-          label="Pickup Location"
-          required
-          options={locations.map((l) => ({ value: l.id, label: l.name }))}
-          placeholder="Select location"
-          {...register('location_id', { required: 'Required', valueAsNumber: true })}
-          error={errors.location_id?.message}
-        />
-        <Select
-          label="Destination"
-          required
-          options={destinations.map((d) => ({ value: d.id, label: d.name }))}
-          placeholder="Select destination"
-          {...register('destination_id', { required: 'Required', valueAsNumber: true })}
-          error={errors.destination_id?.message}
-        />
-        <Input
-          label="Distance (km)"
-          type="number"
-          hint={distanceLoading ? 'Calculating via Google Maps…' : undefined}
-          {...distanceField}
-          onChange={(e) => { distanceField.onChange(e); setDistanceTouched(true); }}
-        />
-        {stops.length > 0 && (
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-1">Pickup Stops <span className="text-gray-400 font-normal">(optional)</span></p>
-            <p className="text-xs text-gray-400 mb-2">
-              Riders can choose one of these as their pickup point instead of the main location. Set a
-              fare for a stop to charge a different price for boarding there — leave it blank to use the
-              ride's base fare.
-            </p>
-            <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
-              {stops.map((s) => {
-                const id = Number(s.id);
-                const checked = selectedStopIds.includes(id);
-                return (
-                  <div key={s.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50">
-                    <label className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleStop(id)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <div className="flex items-center gap-2 min-w-0">
-                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                        <span className="text-sm text-gray-900 truncate">{s.name}</span>
-                      </div>
-                    </label>
-                    {checked && (
-                      <input
-                        type="number"
-                        min={0}
-                        placeholder="Fare (₦)"
-                        value={stopFares[id] ?? ''}
-                        onChange={(e) => setStopFares((prev) => ({ ...prev, [id]: e.target.value }))}
-                        className="w-28 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    </Modal>
   );
 }
 

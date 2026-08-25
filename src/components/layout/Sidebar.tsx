@@ -52,7 +52,7 @@ const navItems: NavItem[] = [
     label: 'Operations',
     icon: <MapPin className="w-5 h-5" />,
     children: [
-      { label: 'Routes', path: '/routes' },
+      { label: 'Schedules', path: '/schedules' },
     ],
   },
   { label: 'Rides', path: '/rides', icon: <Calendar className="w-5 h-5" /> },

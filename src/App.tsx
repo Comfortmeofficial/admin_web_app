@@ -24,6 +24,7 @@ import { DriverDetailPage } from './features/drivers/pages/DriverDetailPage';
 import { BusesPage } from './features/buses/pages/BusesPage';
 import { BusDetailPage } from './features/buses/pages/BusDetailPage';
 import { RoutesPage } from './features/routes/pages/RoutesPage';
+import { SchedulesPage } from './features/schedules/pages/SchedulesPage';
 import { RidesPage } from './features/rides/pages/RidesPage';
 import { RideDetailPage } from './features/rides/pages/RideDetailPage';
 import { BookingsPage } from './features/bookings/pages/BookingsPage';
@@ -122,8 +123,9 @@ export default function App() {
                 <Route path="/buses/:id" element={<BusDetailPage />} />
 
                 {/* Operations */}
-                <Route path="/routes" element={<RoutesPage />} />
+                <Route path="/routes" element={<Navigate to="/schedules" replace />} />
                 <Route path="/locations" element={<RoutesPage />} />
+                <Route path="/schedules" element={<SchedulesPage />} />
 
                 {/* Rides */}
                 <Route path="/rides" element={<RidesPage />} />

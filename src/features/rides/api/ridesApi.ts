@@ -50,6 +50,13 @@ export const ridesApi = {
     return data as Ride[];
   },
 
+  // Marshal-facing counterpart to updateStatus (which they can't call —
+  // that's ops-only) — closes out a trip they're actually present for.
+  endTrip: async (rideId: string) => {
+    const { data } = await bookingClient.post(`/api/v1/rides/${rideId}/end-trip`);
+    return data as Ride;
+  },
+
   getPassengers: async (rideId: string) => {
     const { data } = await bookingClient.get(`/api/v1/rides/${rideId}/passengers`);
     return data as Passenger[];

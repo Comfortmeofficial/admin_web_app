@@ -22,6 +22,7 @@ export function RouteFields({ value, onChange, locations, destinations, stops }:
   const [nameTouched, setNameTouched] = useState(false);
   const [distanceTouched, setDistanceTouched] = useState(false);
   const [distanceLoading, setDistanceLoading] = useState(false);
+  const [distanceFailed, setDistanceFailed] = useState(false);
   const [stopFares, setStopFares] = useState<Record<number, string>>(() =>
     Object.fromEntries((value.stops ?? []).map((s) => [s.stop_id, s.fare != null ? String(s.fare) : '']))
   );
@@ -34,8 +35,8 @@ export function RouteFields({ value, onChange, locations, destinations, stops }:
   // type a name themselves, so we never clobber a manual entry.
   useEffect(() => {
     if (nameTouched || !locationId || !destinationId) return;
-    const pickup = locations.find((l) => l.id === String(locationId));
-    const destination = destinations.find((d) => d.id === String(destinationId));
+    const pickup = locations.find((l) => String(l.id) === String(locationId));
+    const destination = destinations.find((d) => String(d.id) === String(destinationId));
     if (pickup && destination) {
       onChange({ ...value, name: `${pickup.name} — ${destination.name}` });
     }
@@ -50,11 +51,12 @@ export function RouteFields({ value, onChange, locations, destinations, stops }:
     if (distanceTouched || !locationId || !destinationId) return;
     let cancelled = false;
     setDistanceLoading(true);
+    setDistanceFailed(false);
     routesApi.getDistance(String(locationId), String(destinationId))
       .then((result) => {
         if (!cancelled) onChange({ ...value, distance_km: Math.round(result.distance_km * 10) / 10 });
       })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setDistanceFailed(true); })
       .finally(() => { if (!cancelled) setDistanceLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,7 +108,13 @@ export function RouteFields({ value, onChange, locations, destinations, stops }:
       <Input
         label="Distance (km)"
         type="number"
-        hint={distanceLoading ? 'Calculating via Google Maps…' : undefined}
+        hint={
+          distanceLoading
+            ? 'Calculating via Google Maps…'
+            : distanceFailed
+              ? 'Could not calculate automatically — enter the distance manually.'
+              : undefined
+        }
         value={value.distance_km ?? ''}
         onChange={(e) => { setDistanceTouched(true); onChange({ ...value, distance_km: Number(e.target.value) }); }}
       />

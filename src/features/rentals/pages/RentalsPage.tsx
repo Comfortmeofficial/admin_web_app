@@ -16,11 +16,27 @@ import { useToast } from '@/components/ui/Toast';
 import { formatDate, getErrorMessage, slugToLabel } from '@/lib/utils';
 import type { Rental, RentalStatus } from '@/types';
 
-const STATUS_TABS: { label: string; value: RentalStatus | 'all' }[] = [
+// There's no stored "ongoing" status — a confirmed rental becomes ongoing
+// the moment its pickup date arrives, and stays that way through its return
+// date if it's a round trip. Computed here rather than added to
+// RentalStatus, the same way a departed ride is inferred client-side rather
+// than tracked as its own backend state.
+function isOngoing(r: Rental) {
+  if (r.status !== 'confirmed') return false;
+  const today = new Date().toISOString().slice(0, 10);
+  const start = r.pickup_date.slice(0, 10);
+  const end = (r.is_round_trip ? r.return_date : undefined)?.slice(0, 10) ?? start;
+  return today >= start && today <= end;
+}
+
+type StatusFilter = RentalStatus | 'all' | 'ongoing';
+
+const STATUS_TABS: { label: string; value: StatusFilter }[] = [
   { label: 'All', value: 'all' },
   { label: 'Pending', value: 'pending' },
   { label: 'Awaiting Payment', value: 'awaiting_payment' },
   { label: 'Confirmed', value: 'confirmed' },
+  { label: 'Ongoing', value: 'ongoing' },
   { label: 'Completed', value: 'completed' },
   { label: 'Rejected', value: 'rejected' },
   { label: 'Cancelled', value: 'cancelled' },
@@ -48,7 +64,7 @@ export function RentalsPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<RentalStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [actionMenu, setActionMenu] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ rental: Rental; action: 'reject' | 'complete' | 'cancel' } | null>(null);
   const [priceModalRental, setPriceModalRental] = useState<Rental | null>(null);
@@ -85,7 +101,8 @@ export function RentalsPage() {
   });
 
   const filtered = rentals.filter((r) => {
-    const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
+    const matchesStatus =
+      statusFilter === 'all' || (statusFilter === 'ongoing' ? isOngoing(r) : r.status === statusFilter);
     const q = search.toLowerCase();
     const matchesSearch = !q || r.pickup.toLowerCase().includes(q) || r.destination.toLowerCase().includes(q) || r.phone.includes(q) || r.event_type.toLowerCase().includes(q);
     return matchesStatus && matchesSearch;
@@ -93,7 +110,7 @@ export function RentalsPage() {
 
   const pending = rentals.filter((r) => r.status === 'pending').length;
   const confirmed = rentals.filter((r) => r.status === 'confirmed').length;
-  const completed = rentals.filter((r) => r.status === 'completed').length;
+  const ongoing = rentals.filter(isOngoing).length;
   const revenue = rentals.filter((r) => r.status === 'completed').reduce((s, r) => s + r.amount, 0);
 
   const columns: Column<Rental>[] = [
@@ -188,10 +205,11 @@ export function RentalsPage() {
       <Header title="Bus Rentals" subtitle="Manage weekend bus rental requests" />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <StatsCard label="Total Requests" value={rentals.length} icon={<Bus className="w-5 h-5 text-blue-600" />} iconBg="bg-blue-100" />
           <StatsCard label="Pending" value={pending} icon={<Clock className="w-5 h-5 text-amber-600" />} iconBg="bg-amber-100" />
           <StatsCard label="Confirmed" value={confirmed} icon={<CheckCircle className="w-5 h-5 text-green-600" />} iconBg="bg-green-100" />
+          <StatsCard label="Ongoing" value={ongoing} icon={<Bus className="w-5 h-5 text-teal-600" />} iconBg="bg-teal-100" />
           <StatsCard label="Revenue" value={`₦${revenue.toLocaleString()}`} icon={<CheckCircle className="w-5 h-5 text-purple-600" />} iconBg="bg-purple-100" />
         </div>
 

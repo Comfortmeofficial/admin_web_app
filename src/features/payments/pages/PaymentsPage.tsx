@@ -11,21 +11,29 @@ import { Pagination } from '@/components/ui/Pagination';
 import { StatsCard } from '@/components/ui/Tabs';
 import { formatDateTime, formatCurrency, slugToLabel, exportToCsv } from '@/lib/utils';
 import { PAGE_SIZE } from '@/lib/constants';
-import { Download, TrendingUp, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Download, TrendingUp, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 import type { WalletTransaction } from '@/types';
 
-const STATUS_TABS = [
+// There's no dedicated gateway-payments endpoint yet, so this page is really
+// the wallet ledger — deposit/refund money in, withdrawal/trip_fare money
+// out. It has no `status` field at all, so a Successful/Pending/Failed
+// filter can never be more than dead buttons; this filters by direction
+// instead, which the data can actually answer. Mirrors the same split the
+// customer app's own wallet screen already uses (isCredit in wallet/index.tsx).
+function isCredit(type: string) {
+  return type === 'deposit' || type === 'refund';
+}
+
+const DIRECTION_TABS = [
   { key: 'all', label: 'All' },
-  { key: 'success', label: 'Successful' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'failed', label: 'Failed' },
-  { key: 'refunded', label: 'Refunded' },
+  { key: 'credit', label: 'Money In' },
+  { key: 'debit', label: 'Money Out' },
 ];
 
 export function PaymentsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [statusTab, setStatusTab] = useState('all');
+  const [directionTab, setDirectionTab] = useState('all');
 
   // Since no direct "all transactions" endpoint exists in the backend,
   // we use wallet service which has global transaction records
@@ -45,34 +53,44 @@ export function PaymentsPage() {
   });
 
   const filtered = transactions.filter((t) => {
+    const matchesDirection =
+      directionTab === 'all' || (directionTab === 'credit' ? isCredit(t.type) : !isCredit(t.type));
     const matchesSearch = `${t.reference} ${t.description}`.toLowerCase().includes(search.toLowerCase());
-    return matchesSearch;
+    return matchesDirection && matchesSearch;
   });
 
-  const totalRevenue = transactions.reduce((sum, t) => sum + (t.amount ?? 0), 0);
+  const totalCredits = transactions.filter((t) => isCredit(t.type)).reduce((sum, t) => sum + (t.amount ?? 0), 0);
+  const totalDebits = transactions.filter((t) => !isCredit(t.type)).reduce((sum, t) => sum + (t.amount ?? 0), 0);
+  const net = totalCredits - totalDebits;
 
   const columns: Column<WalletTransaction>[] = [
     { key: 'ref', header: 'Reference', cell: (r) => <span className="font-mono text-xs">{r.reference}</span> },
     { key: 'description', header: 'Description', cell: (r) => r.description },
-    { key: 'amount', header: 'Amount', cell: (r) => formatCurrency(r.amount) },
+    {
+      key: 'amount', header: 'Amount',
+      cell: (r) => (
+        <span className={isCredit(r.type) ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+          {isCredit(r.type) ? '+' : '−'}{formatCurrency(r.amount)}
+        </span>
+      ),
+    },
     {
       key: 'type', header: 'Type',
-      cell: (r) => <Badge variant="info">{slugToLabel(r.type)}</Badge>,
+      cell: (r) => <Badge variant={isCredit(r.type) ? 'success' : 'gray'}>{slugToLabel(r.type)}</Badge>,
     },
     { key: 'date', header: 'Date', cell: (r) => formatDateTime(r.created_at) },
   ];
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Payment Management" subtitle="Monitor transactions, payments, and revenue" />
+      <Header title="Payment Management" subtitle="Wallet ledger — every credit and debit, with a running net" />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatsCard label="Total Revenue" value={formatCurrency(totalRevenue)} icon={<TrendingUp className="w-5 h-5 text-green-600" />} iconBg="bg-green-100" />
-          <StatsCard label="Successful" value="—" icon={<CheckCircle className="w-5 h-5 text-green-600" />} iconBg="bg-green-100" />
-          <StatsCard label="Pending" value="—" icon={<Clock className="w-5 h-5 text-amber-600" />} iconBg="bg-amber-100" />
-          <StatsCard label="Failed" value="—" icon={<XCircle className="w-5 h-5 text-red-600" />} iconBg="bg-red-100" />
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <StatsCard label="Total Credits" value={formatCurrency(totalCredits)} icon={<ArrowDownCircle className="w-5 h-5 text-green-600" />} iconBg="bg-green-100" />
+          <StatsCard label="Total Debits" value={formatCurrency(totalDebits)} icon={<ArrowUpCircle className="w-5 h-5 text-red-600" />} iconBg="bg-red-100" />
+          <StatsCard label="Net" value={formatCurrency(net)} icon={<TrendingUp className="w-5 h-5 text-blue-600" />} iconBg="bg-blue-100" />
         </div>
 
         {/* Table */}
@@ -86,7 +104,7 @@ export function PaymentsPage() {
           </div>
 
           <div className="px-5 pt-3 border-b border-gray-100">
-            <Tabs tabs={STATUS_TABS} active={statusTab} onChange={(k) => { setStatusTab(k); setPage(1); }} />
+            <Tabs tabs={DIRECTION_TABS} active={directionTab} onChange={(k) => { setDirectionTab(k); setPage(1); }} />
           </div>
 
           <Table columns={columns} data={filtered} loading={isLoading} rowKey={(r) => r.id} emptyMessage="No transactions found" />

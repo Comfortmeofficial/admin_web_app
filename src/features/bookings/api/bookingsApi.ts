@@ -1,8 +1,10 @@
 import { bookingClient } from '@/lib/api';
-import type { Booking } from '@/types';
+import type { Booking, BookingStatus } from '@/types';
 
 export const bookingsApi = {
-  list: async (params: { skip?: number; limit?: number; user_id?: string; ride_id?: string } = {}) => {
+  list: async (
+    params: { skip?: number; limit?: number; user_id?: string; ride_id?: string; status?: BookingStatus } = {},
+  ) => {
     // Use /all for admin (no user_id required); fall back to user-scoped if user_id provided
     const endpoint = params.user_id ? '/api/v1/bookings' : '/api/v1/bookings/all';
     const { data } = await bookingClient.get(endpoint, { params });

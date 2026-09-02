@@ -62,10 +62,22 @@ export function UserDetailPage() {
     { key: 'date', header: 'Date', cell: (r) => formatDate(r.created_at) },
   ];
 
+  // Same deposit/refund = credit, withdrawal/trip_fare = debit split the
+  // Payments page and the customer app's own wallet screen use — kept in
+  // sync so a balance movement reads the same way everywhere it shows up.
+  const isCredit = (type: string) => type === 'deposit' || type === 'refund';
+
   const txColumns: Column<WalletTransaction>[] = [
     { key: 'desc', header: 'Description', cell: (r) => r.description },
-    { key: 'amount', header: 'Amount', cell: (r) => formatCurrency(r.amount) },
-    { key: 'type', header: 'Type', cell: (r) => <Badge variant="gray">{slugToLabel(r.type)}</Badge> },
+    {
+      key: 'amount', header: 'Amount',
+      cell: (r) => (
+        <span className={isCredit(r.type) ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+          {isCredit(r.type) ? '+' : '−'}{formatCurrency(r.amount)}
+        </span>
+      ),
+    },
+    { key: 'type', header: 'Type', cell: (r) => <Badge variant={isCredit(r.type) ? 'success' : 'gray'}>{slugToLabel(r.type)}</Badge> },
     { key: 'ref', header: 'Reference', cell: (r) => <span className="font-mono text-xs">{r.reference}</span> },
     { key: 'date', header: 'Date', cell: (r) => formatDate(r.created_at) },
   ];

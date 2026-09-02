@@ -35,8 +35,13 @@ export function BookingsPage() {
   const [cancelBooking, setCancelBooking] = useState<Booking | null>(null);
 
   const { data: bookings = [], isLoading } = useQuery({
-    queryKey: ['bookings', page],
-    queryFn: () => bookingsApi.list({ skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE }),
+    queryKey: ['bookings', page, statusTab],
+    queryFn: () =>
+      bookingsApi.list({
+        skip: (page - 1) * PAGE_SIZE,
+        limit: PAGE_SIZE,
+        status: statusTab === 'all' ? undefined : (statusTab as Booking['status']),
+      }),
     placeholderData: (prev) => prev,
   });
 

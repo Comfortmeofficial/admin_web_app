@@ -6,6 +6,7 @@ import {
   Bus,
   MapPin,
   Calendar,
+  Repeat,
   BookOpen,
   CreditCard,
   Gift,
@@ -16,8 +17,6 @@ import {
   Settings,
   HeadphonesIcon,
   ShieldCheck,
-  ChevronDown,
-  ChevronRight,
   LogOut,
   Truck,
   Package,
@@ -25,36 +24,23 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/context/AuthContext';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 interface NavItem {
   label: string;
-  path?: string;
+  path: string;
   icon: ReactNode;
   roles?: string[];
-  children?: Omit<NavItem, 'icon' | 'children'>[];
 }
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-5 h-5" /> },
-  {
-    label: 'Administration',
-    icon: <ShieldCheck className="w-5 h-5" />,
-    roles: ['super_admin'],
-    children: [
-      { label: 'Admins', path: '/admins' },
-    ],
-  },
+  { label: 'Admins', path: '/admins', icon: <ShieldCheck className="w-5 h-5" />, roles: ['super_admin'] },
   { label: 'Users', path: '/users', icon: <Users className="w-5 h-5" /> },
   { label: 'Drivers', path: '/drivers', icon: <Car className="w-5 h-5" /> },
   { label: 'Buses', path: '/buses', icon: <Bus className="w-5 h-5" /> },
-  {
-    label: 'Operations',
-    icon: <MapPin className="w-5 h-5" />,
-    children: [
-      { label: 'Schedules', path: '/schedules' },
-    ],
-  },
+  { label: 'Locations', path: '/locations', icon: <MapPin className="w-5 h-5" /> },
+  { label: 'Schedules', path: '/schedules', icon: <Repeat className="w-5 h-5" /> },
   { label: 'Rides', path: '/rides', icon: <Calendar className="w-5 h-5" /> },
   { label: 'Bookings', path: '/bookings', icon: <BookOpen className="w-5 h-5" /> },
   { label: 'Payments', path: '/payments', icon: <CreditCard className="w-5 h-5" /> },
@@ -76,43 +62,6 @@ const marshalNavItems: NavItem[] = [
   { label: 'My Trip', path: '/my-trip', icon: <Shield className="w-5 h-5" /> },
 ];
 
-interface GroupItemProps {
-  item: NavItem;
-  currentRole: string;
-}
-
-function GroupItem({ item, currentRole }: GroupItemProps) {
-  const [open, setOpen] = useState(false);
-  if (item.roles && !item.roles.includes(currentRole)) return null;
-  return (
-    <div>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="sidebar-link w-full"
-      >
-        <span className="sidebar-link-icon">{item.icon}</span>
-        <span className="flex-1 text-left">{item.label}</span>
-        {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-      </button>
-      {open && (
-        <div className="ml-8 mt-1 flex flex-col gap-0.5">
-          {item.children?.map((child) => (
-            <NavLink
-              key={child.path}
-              to={child.path!}
-              className={({ isActive }) =>
-                cn('sidebar-link text-xs py-2', isActive && 'active')
-              }
-            >
-              {child.label}
-            </NavLink>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function Sidebar() {
   const { admin, logout } = useAuth();
   const itemsToRender = admin?.role === 'bus_marshal' ? marshalNavItems : navItems;
@@ -131,14 +80,11 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-0.5">
         {itemsToRender.map((item) => {
-          if (item.children) {
-            return <GroupItem key={item.label} item={item} currentRole={admin?.role ?? ''} />;
-          }
           if (item.roles && !item.roles.includes(admin?.role ?? '')) return null;
           return (
             <NavLink
               key={item.path}
-              to={item.path!}
+              to={item.path}
               end={item.path === '/'}
               className={({ isActive }) => cn('sidebar-link', isActive && 'active')}
             >

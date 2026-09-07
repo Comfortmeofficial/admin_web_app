@@ -17,7 +17,7 @@ export const bookingsApi = {
   },
 
   getByReference: async (reference: string) => {
-    const { data } = await bookingClient.get(`/api/v1/bookings/ref/${reference}`);
+    const { data } = await bookingClient.get(`/api/v1/bookings/reference/${reference}`);
     return data as Booking;
   },
 

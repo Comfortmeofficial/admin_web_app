@@ -20,11 +20,16 @@ export function AuditLogsPage() {
   const [endDate, setEndDate] = useState('');
 
   const { data: logs = [], isLoading } = useQuery({
-    queryKey: ['audit-logs', page],
+    queryKey: ['audit-logs', page, startDate, endDate],
     queryFn: async () => {
       try {
         const { data } = await adminClient.get('/api/v1/audit-logs', {
-          params: { skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE },
+          params: {
+            skip: (page - 1) * PAGE_SIZE,
+            limit: PAGE_SIZE,
+            start_date: startDate || undefined,
+            end_date: endDate || undefined,
+          },
         });
         return (Array.isArray(data) ? data : (data?.data ?? [])) as AuditLog[];
       } catch {
@@ -87,8 +92,8 @@ export function AuditLogsPage() {
               <p className="text-xs text-gray-500 mt-0.5">{logs.length} entries</p>
             </div>
             <div className="flex items-center gap-3">
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-36 text-xs" />
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-36 text-xs" />
+              <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} className="w-36 text-xs" />
+              <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} className="w-36 text-xs" />
               <SearchInput value={search} onChange={setSearch} placeholder="Search logs…" className="w-48" />
               <Button variant="outline" size="sm" icon={<Download className="w-3.5 h-3.5" />} onClick={() => exportToCsv(logs, 'audit-logs')}>Export</Button>
             </div>

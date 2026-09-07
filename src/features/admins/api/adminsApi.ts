@@ -36,8 +36,13 @@ export const adminsApi = {
     return data as Admin;
   },
 
-  resetPassword: async (id: string, newPassword: string) => {
-    await adminClient.post(`/api/v1/admins/${id}/reset-password`, { new_password: newPassword });
+  // Returns a server-generated temporary password in plaintext — the admin
+  // triggering this communicates it to the account owner out of band, same
+  // pattern as driversApi's equivalent. There's no way to set a specific
+  // chosen password here; the backend route doesn't accept one.
+  resetPassword: async (id: string): Promise<{ temporary_password: string }> => {
+    const { data } = await adminClient.post(`/api/v1/admins/${id}/reset-password`);
+    return data;
   },
 
   listMarshals: async () => {

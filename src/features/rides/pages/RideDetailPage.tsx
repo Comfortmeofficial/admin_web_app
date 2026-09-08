@@ -56,9 +56,7 @@ export function RideDetailPage() {
     queryFn: () => driversApi.list(),
     enabled: showAssignDriver,
   });
-  const eligibleDrivers = allDrivers.filter(
-    (d) => d.verification_status === 'approved' && d.status !== 'suspended',
-  );
+  const eligibleDrivers = allDrivers.filter((d) => d.status !== 'suspended');
 
   const { data: marshals = [] } = useQuery({
     queryKey: ['admins', 'marshals'],

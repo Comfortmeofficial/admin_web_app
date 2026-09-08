@@ -31,18 +31,6 @@ export const driversApi = {
     await driverClient.delete(`/api/v1/drivers/${id}`);
   },
 
-  approve: async (id: string) => {
-    const { data } = await driverClient.put(`/api/v1/drivers/${id}`, { verification_status: 'approved' });
-    return data as Driver;
-  },
-
-  reject: async (id: string) => {
-    const { data } = await driverClient.put(`/api/v1/drivers/${id}`, {
-      verification_status: 'rejected',
-    });
-    return data as Driver;
-  },
-
   suspend: async (id: string) => {
     const { data } = await driverClient.put(`/api/v1/drivers/${id}`, { status: 'suspended' });
     return data as Driver;

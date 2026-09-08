@@ -165,7 +165,7 @@ function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
   const { data: stops = [] } = useQuery({ queryKey: ['stops'], queryFn: routesApi.listStops });
   const { data: buses = [] } = useQuery({ queryKey: ['buses'], queryFn: busesApi.list });
   const { data: allDrivers = [] } = useQuery({ queryKey: ['drivers'], queryFn: () => driversApi.list() });
-  const drivers = allDrivers.filter((d) => d.verification_status === 'approved' && d.status !== 'suspended');
+  const drivers = allDrivers.filter((d) => d.status !== 'suspended');
 
   const [route, setRoute] = useState<CreateRoutePayload>(emptyRouteDraft());
   const { register, handleSubmit, reset, formState: { errors } } = useForm<Omit<CreateRidePayload, 'route'>>();

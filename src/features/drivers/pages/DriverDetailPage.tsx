@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Mail, Phone, MapPin, Car, Star,
-  Calendar, CheckCircle, XCircle, Power
+  Calendar, Power
 } from 'lucide-react';
 import { driversApi } from '../api/driversApi';
 import { busesApi } from '@/features/buses/api/busesApi';
@@ -65,18 +65,6 @@ export function DriverDetailPage() {
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
-  const approveMutation = useMutation({
-    mutationFn: () => driversApi.approve(id!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['driver', id] }); toast.success('Driver approved'); setConfirm(null); },
-    onError: (e) => toast.error('Failed', getErrorMessage(e)),
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: () => driversApi.reject(id!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['driver', id] }); toast.success('Driver rejected'); setConfirm(null); },
-    onError: (e) => toast.error('Failed', getErrorMessage(e)),
-  });
-
   const suspendMutation = useMutation({
     mutationFn: () => driversApi.suspend(id!),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['driver', id] }); toast.success('Driver suspended'); setConfirm(null); },
@@ -121,9 +109,7 @@ export function DriverDetailPage() {
 
   const handleAction = () => {
     if (!confirm) return;
-    if (confirm.action === 'approve') approveMutation.mutate();
-    else if (confirm.action === 'reject') rejectMutation.mutate();
-    else if (confirm.action === 'suspend') suspendMutation.mutate();
+    if (confirm.action === 'suspend') suspendMutation.mutate();
     else if (confirm.action === 'reinstate') reinstateMutation.mutate();
     else if (confirm.action === 'set_available') setAvailableMutation.mutate();
     else if (confirm.action === 'set_unavailable') setUnavailableMutation.mutate();
@@ -132,7 +118,7 @@ export function DriverDetailPage() {
   if (isLoading) return <PageSpinner />;
   if (!driver) return null;
 
-  const isPending = approveMutation.isPending || rejectMutation.isPending || suspendMutation.isPending
+  const isPending = suspendMutation.isPending
     || reinstateMutation.isPending || setAvailableMutation.isPending || setUnavailableMutation.isPending;
 
   return (
@@ -153,30 +139,23 @@ export function DriverDetailPage() {
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">{driver.first_name} {driver.last_name}</h2>
-                <p className="text-sm text-gray-500 mt-0.5">{driver.driver_type ? slugToLabel(driver.driver_type) : 'Driver'}</p>
+                <p className="text-sm text-gray-500 mt-0.5">Driver</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant={statusBadge(driver.verification_status)} dot>{slugToLabel(driver.verification_status)}</Badge>
                 <Badge variant={statusBadge(driver.status)} dot>{slugToLabel(driver.status)}</Badge>
                 <Button variant="outline" size="sm" onClick={() => setShowEdit(true)}>Edit Profile</Button>
-                {(driver.verification_status === 'pending' || driver.verification_status === 'under_review') && (
-                  <>
-                    <Button size="sm" icon={<CheckCircle className="w-4 h-4" />} onClick={() => setConfirm({ action: 'approve' })}>Approve</Button>
-                    <Button variant="danger" size="sm" icon={<XCircle className="w-4 h-4" />} onClick={() => setConfirm({ action: 'reject' })}>Reject</Button>
-                  </>
-                )}
-                {driver.status !== 'suspended' && driver.verification_status === 'approved' && (
+                {driver.status !== 'suspended' && (
                   <Button variant="danger" size="sm" onClick={() => setConfirm({ action: 'suspend' })}>Suspend</Button>
                 )}
                 {driver.status === 'suspended' && (
                   <Button variant="primary" size="sm" onClick={() => setConfirm({ action: 'reinstate' })}>Reinstate</Button>
                 )}
-                {driver.status === 'offline' && driver.verification_status === 'approved' && (
+                {driver.status === 'offline' && (
                   <Button variant="primary" size="sm" icon={<Power className="w-4 h-4" />} onClick={() => setConfirm({ action: 'set_available' })}>
                     Set Available
                   </Button>
                 )}
-                {driver.status === 'available' && driver.verification_status === 'approved' && (
+                {driver.status === 'available' && (
                   <Button variant="outline" size="sm" icon={<Power className="w-4 h-4" />} onClick={() => setConfirm({ action: 'set_unavailable' })}>
                     Set Unavailable
                   </Button>
@@ -204,8 +183,9 @@ export function DriverDetailPage() {
                   ['Email', driver.email],
                   ['Phone', driver.phone],
                   ['Address', driver.address ?? '—'],
-                  ['Emergency Contact', driver.emergency_contact ?? '—'],
                   ['Next of Kin', driver.next_of_kin ?? '—'],
+                  ['Next of Kin Phone', driver.next_of_kin_phone ?? '—'],
+                  ['Relationship', driver.next_of_kin_relationship ?? '—'],
                   ['Joined', formatDate(driver.created_at)],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between gap-4">
@@ -216,13 +196,11 @@ export function DriverDetailPage() {
               </dl>
             </Card>
             <Card>
-              <h3 className="font-semibold text-gray-900 mb-4">License & Verification</h3>
+              <h3 className="font-semibold text-gray-900 mb-4">License</h3>
               <dl className="space-y-3">
                 {[
                   ['License Number', driver.license_number],
                   ['License Expiry', formatDate(driver.license_expiry)],
-                  ['Driver Type', driver.driver_type ? slugToLabel(driver.driver_type) : '—'],
-                  ['Verification', <Badge key="v" variant={statusBadge(driver.verification_status)} dot>{slugToLabel(driver.verification_status)}</Badge>],
                   ['Availability', <Badge key="a" variant={statusBadge(driver.status)} dot>{slugToLabel(driver.status)}</Badge>],
                   ['Total Trips', driver.total_trips ?? 0],
                 ].map(([label, value]) => (
@@ -357,7 +335,7 @@ export function DriverDetailPage() {
         onClose={() => setConfirm(null)}
         onConfirm={handleAction}
         loading={isPending}
-        confirmVariant={confirm?.action === 'approve' || confirm?.action === 'reinstate' || confirm?.action === 'set_available' || confirm?.action === 'set_unavailable' ? 'primary' : 'danger'}
+        confirmVariant={confirm?.action === 'reinstate' || confirm?.action === 'set_available' || confirm?.action === 'set_unavailable' ? 'primary' : 'danger'}
         confirmLabel={confirm?.action ? slugToLabel(confirm.action) : 'Confirm'}
         message={`Confirm: ${confirm?.action} driver "${driver.first_name} ${driver.last_name}"?`}
       />

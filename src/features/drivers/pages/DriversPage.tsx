@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, MoreVertical, Eye, CheckCircle, XCircle, Power, Download } from 'lucide-react';
+import { Plus, MoreVertical, Eye, Power, Download } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { driversApi } from '../api/driversApi';
 import { Header } from '@/components/layout/Header';
@@ -11,21 +11,16 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Tabs } from '@/components/ui/Tabs';
 import { Pagination } from '@/components/ui/Pagination';
 import { useToast } from '@/components/ui/Toast';
 import { formatDate, getErrorMessage, slugToLabel, exportToCsv } from '@/lib/utils';
 import { PAGE_SIZE } from '@/lib/constants';
-import type { Driver, CreateDriverPayload, DriverVerificationStatus } from '@/types';
+import type { Driver, CreateDriverPayload } from '@/types';
 
 const STATUS_TABS = [
   { key: 'all', label: 'All Drivers' },
-  { key: 'pending', label: 'Pending Verification' },
-  { key: 'under_review', label: 'Under Review' },
-  { key: 'approved', label: 'Approved' },
-  { key: 'rejected', label: 'Rejected' },
   { key: 'suspended', label: 'Suspended' },
 ];
 
@@ -56,18 +51,6 @@ export function DriversPage() {
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
-  const approveMutation = useMutation({
-    mutationFn: (id: string) => driversApi.approve(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['drivers'] }); toast.success('Driver approved'); setConfirm(null); },
-    onError: (e) => toast.error('Failed', getErrorMessage(e)),
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: (id: string) => driversApi.reject(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['drivers'] }); toast.success('Driver rejected'); setConfirm(null); },
-    onError: (e) => toast.error('Failed', getErrorMessage(e)),
-  });
-
   const suspendMutation = useMutation({
     mutationFn: (id: string) => driversApi.suspend(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['drivers'] }); toast.success('Driver suspended'); setConfirm(null); },
@@ -83,21 +66,18 @@ export function DriversPage() {
   const filtered = drivers.filter((d) => {
     const matchesSearch = `${d.first_name} ${d.last_name} ${d.email} ${d.phone} ${d.license_number}`
       .toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusTab === 'all'
-      || (statusTab === 'suspended' ? d.status === 'suspended' : d.verification_status === statusTab);
+    const matchesStatus = statusTab === 'all' || d.status === statusTab;
     return matchesSearch && matchesStatus;
   });
 
   const handleAction = () => {
     if (!confirm) return;
     const { driver, action } = confirm;
-    if (action === 'approve') approveMutation.mutate(driver.id);
-    else if (action === 'reject') rejectMutation.mutate(driver.id);
-    else if (action === 'suspend') suspendMutation.mutate(driver.id);
+    if (action === 'suspend') suspendMutation.mutate(driver.id);
     else if (action === 'reinstate') reinstateMutation.mutate(driver.id);
   };
 
-  const isPending = approveMutation.isPending || rejectMutation.isPending || suspendMutation.isPending || reinstateMutation.isPending;
+  const isPending = suspendMutation.isPending || reinstateMutation.isPending;
 
   const columns: Column<Driver>[] = [
     {
@@ -118,15 +98,6 @@ export function DriversPage() {
     { key: 'phone', header: 'Phone', cell: (r) => r.phone },
     { key: 'license', header: 'License', cell: (r) => <span className="font-mono text-xs">{r.license_number}</span> },
     { key: 'license_expiry', header: 'License Expiry', cell: (r) => formatDate(r.license_expiry) },
-    {
-      key: 'verification',
-      header: 'Verification',
-      cell: (r) => (
-        <Badge variant={statusBadge(r.verification_status)} dot>
-          {slugToLabel(r.verification_status)}
-        </Badge>
-      ),
-    },
     {
       key: 'status',
       header: 'Availability',
@@ -151,13 +122,7 @@ export function DriversPage() {
           {actionMenu === row.id && (
             <div className="absolute right-0 top-8 z-10 bg-white rounded-lg shadow-lg border border-gray-200 min-w-[168px] py-1">
               <button onClick={() => { navigate(`/drivers/${row.id}`); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"><Eye className="w-3.5 h-3.5" /> View Profile</button>
-              {row.verification_status === 'pending' || row.verification_status === 'under_review' ? (
-                <>
-                  <button onClick={() => { setConfirm({ driver: row, action: 'approve' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-green-600 hover:bg-green-50 w-full"><CheckCircle className="w-3.5 h-3.5" /> Approve</button>
-                  <button onClick={() => { setConfirm({ driver: row, action: 'reject' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-full"><XCircle className="w-3.5 h-3.5" /> Reject</button>
-                </>
-              ) : null}
-              {row.verification_status === 'approved' && row.status !== 'suspended' ? (
+              {row.status !== 'suspended' ? (
                 <button onClick={() => { setConfirm({ driver: row, action: 'suspend' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 w-full"><Power className="w-3.5 h-3.5" /> Suspend</button>
               ) : null}
               {row.status === 'suspended' ? (
@@ -173,7 +138,7 @@ export function DriversPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Driver Management" subtitle="Manage driver onboarding, verification, and operations" />
+      <Header title="Driver Management" subtitle="Manage drivers and operations" />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -215,7 +180,7 @@ export function DriversPage() {
         onClose={() => setConfirm(null)}
         onConfirm={handleAction}
         loading={isPending}
-        confirmVariant={confirm?.action === 'approve' || confirm?.action === 'reinstate' ? 'primary' : 'danger'}
+        confirmVariant={confirm?.action === 'reinstate' ? 'primary' : 'danger'}
         confirmLabel={confirm?.action ? slugToLabel(confirm.action) : 'Confirm'}
         message={`Are you sure you want to ${confirm?.action} driver "${confirm?.driver.first_name} ${confirm?.driver.last_name}"?`}
       />
@@ -240,11 +205,11 @@ export function DriverForm({ open, onClose, onSubmit, loading, defaultValues, is
       email: defaultValues?.email ?? '',
       phone: defaultValues?.phone ?? '',
       address: defaultValues?.address ?? '',
-      emergency_contact: defaultValues?.emergency_contact ?? '',
       next_of_kin: defaultValues?.next_of_kin ?? '',
+      next_of_kin_phone: defaultValues?.next_of_kin_phone ?? '',
+      next_of_kin_relationship: defaultValues?.next_of_kin_relationship ?? '',
       license_number: defaultValues?.license_number ?? '',
       license_expiry: defaultValues?.license_expiry?.split('T')[0] ?? '',
-      driver_type: defaultValues?.driver_type ?? '',
     },
   });
 
@@ -273,24 +238,15 @@ export function DriverForm({ open, onClose, onSubmit, loading, defaultValues, is
           <Input label="Phone" required {...register('phone', { required: 'Required' })} error={errors.phone?.message} />
         </div>
         <Input label="Address" {...register('address')} />
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="Emergency Contact" {...register('emergency_contact')} />
+        <div className="grid grid-cols-3 gap-3">
           <Input label="Next of Kin" {...register('next_of_kin')} />
+          <Input label="Next of Kin Phone" {...register('next_of_kin_phone')} />
+          <Input label="Relationship" placeholder="e.g. Spouse, Mother" {...register('next_of_kin_relationship')} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Input label="License Number" required {...register('license_number', { required: 'Required' })} error={errors.license_number?.message} />
           <Input label="License Expiry" type="date" required {...register('license_expiry', { required: 'Required' })} error={errors.license_expiry?.message} />
         </div>
-        <Select
-          label="Driver Type"
-          options={[
-            { value: 'intercity', label: 'Intercity' },
-            { value: 'intrastate', label: 'Intrastate' },
-            { value: 'shuttle', label: 'Shuttle' },
-          ]}
-          placeholder="Select driver type"
-          {...register('driver_type')}
-        />
       </div>
     </Modal>
   );

@@ -147,7 +147,7 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
   const { data: stops = [] } = useQuery({ queryKey: ['stops'], queryFn: routesApi.listStops });
   const { data: buses = [] } = useQuery({ queryKey: ['buses'], queryFn: busesApi.list });
   const { data: allDrivers = [] } = useQuery({ queryKey: ['drivers'], queryFn: () => driversApi.list() });
-  const drivers = allDrivers.filter((d) => d.verification_status === 'approved' && d.status !== 'suspended');
+  const drivers = allDrivers.filter((d) => d.status !== 'suspended');
 
   const [route, setRoute] = useState<CreateRoutePayload>(emptyRouteDraft());
   const [days, setDays] = useState<number[]>([]);

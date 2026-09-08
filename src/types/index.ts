@@ -105,11 +105,11 @@ export interface Driver {
   email: string;
   phone: string;
   address?: string;
-  emergency_contact?: string;
   next_of_kin?: string;
+  next_of_kin_phone?: string;
+  next_of_kin_relationship?: string;
   license_number: string;
   license_expiry: string;
-  driver_type?: string;
   status: DriverStatus;
   verification_status: DriverVerificationStatus;
   rating?: number;
@@ -126,11 +126,11 @@ export interface CreateDriverPayload {
   email: string;
   phone: string;
   address?: string;
-  emergency_contact?: string;
   next_of_kin?: string;
+  next_of_kin_phone?: string;
+  next_of_kin_relationship?: string;
   license_number: string;
   license_expiry: string;
-  driver_type?: string;
 }
 
 // ─── Bus ──────────────────────────────────────────────────────────────────────

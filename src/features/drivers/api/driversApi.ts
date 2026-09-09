@@ -1,5 +1,5 @@
 import { driverClient } from '@/lib/api';
-import type { Driver, CreateDriverPayload } from '@/types';
+import type { Driver, CreateDriverPayload, Ride } from '@/types';
 
 export const driversApi = {
   list: async (params: { skip?: number; limit?: number } = {}) => {
@@ -36,18 +36,17 @@ export const driversApi = {
     return data as Driver;
   },
 
+  // "active" isn't admin-settable — it's driven automatically by the ride
+  // lifecycle (see setDriverTripStatus on the backend). Reinstating a
+  // suspended driver just returns them to inactive; they go active again
+  // on their own once they're actually on a trip.
   reinstate: async (id: string) => {
-    const { data } = await driverClient.put(`/api/v1/drivers/${id}`, { status: 'available' });
+    const { data } = await driverClient.put(`/api/v1/drivers/${id}`, { status: 'inactive' });
     return data as Driver;
   },
 
-  setAvailable: async (id: string) => {
-    const { data } = await driverClient.put(`/api/v1/drivers/${id}`, { status: 'available' });
-    return data as Driver;
-  },
-
-  setUnavailable: async (id: string) => {
-    const { data } = await driverClient.put(`/api/v1/drivers/${id}`, { status: 'offline' });
-    return data as Driver;
+  getTrips: async (id: string) => {
+    const { data } = await driverClient.get(`/api/v1/drivers/${id}/trips`);
+    return data as Ride[];
   },
 };

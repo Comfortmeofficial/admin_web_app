@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, MoreVertical, Eye, Power, Download } from 'lucide-react';
+import { Plus, MoreVertical, Eye, Power, Download, Trash2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { driversApi } from '../api/driversApi';
 import { Header } from '@/components/layout/Header';
@@ -21,6 +21,8 @@ import type { Driver, CreateDriverPayload } from '@/types';
 
 const STATUS_TABS = [
   { key: 'all', label: 'All Drivers' },
+  { key: 'active', label: 'Active' },
+  { key: 'inactive', label: 'Inactive' },
   { key: 'suspended', label: 'Suspended' },
 ];
 
@@ -63,6 +65,12 @@ export function DriversPage() {
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => driversApi.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['drivers'] }); toast.success('Driver deleted'); setConfirm(null); },
+    onError: (e) => toast.error('Failed', getErrorMessage(e)),
+  });
+
   const filtered = drivers.filter((d) => {
     const matchesSearch = `${d.first_name} ${d.last_name} ${d.email} ${d.phone} ${d.license_number}`
       .toLowerCase().includes(search.toLowerCase());
@@ -75,9 +83,10 @@ export function DriversPage() {
     const { driver, action } = confirm;
     if (action === 'suspend') suspendMutation.mutate(driver.id);
     else if (action === 'reinstate') reinstateMutation.mutate(driver.id);
+    else if (action === 'delete') deleteMutation.mutate(driver.id);
   };
 
-  const isPending = suspendMutation.isPending || reinstateMutation.isPending;
+  const isPending = suspendMutation.isPending || reinstateMutation.isPending || deleteMutation.isPending;
 
   const columns: Column<Driver>[] = [
     {
@@ -100,14 +109,13 @@ export function DriversPage() {
     { key: 'license_expiry', header: 'License Expiry', cell: (r) => formatDate(r.license_expiry) },
     {
       key: 'status',
-      header: 'Availability',
+      header: 'Status',
       cell: (r) => (
         <Badge variant={statusBadge(r.status)} dot>
           {slugToLabel(r.status)}
         </Badge>
       ),
     },
-    { key: 'rating', header: 'Rating', cell: (r) => r.rating ? `⭐ ${r.rating.toFixed(1)}` : '—' },
     {
       key: 'actions',
       header: '',
@@ -128,6 +136,7 @@ export function DriversPage() {
               {row.status === 'suspended' ? (
                 <button onClick={() => { setConfirm({ driver: row, action: 'reinstate' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-green-600 hover:bg-green-50 w-full"><Power className="w-3.5 h-3.5" /> Reinstate</button>
               ) : null}
+              <button onClick={() => { setConfirm({ driver: row, action: 'delete' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-full"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
             </div>
           )}
         </div>
@@ -182,7 +191,11 @@ export function DriversPage() {
         loading={isPending}
         confirmVariant={confirm?.action === 'reinstate' ? 'primary' : 'danger'}
         confirmLabel={confirm?.action ? slugToLabel(confirm.action) : 'Confirm'}
-        message={`Are you sure you want to ${confirm?.action} driver "${confirm?.driver.first_name} ${confirm?.driver.last_name}"?`}
+        message={
+          confirm?.action === 'delete'
+            ? `Delete driver "${confirm?.driver.first_name} ${confirm?.driver.last_name}"? This removes them from active use — for drivers who are no longer with the company.`
+            : `Are you sure you want to ${confirm?.action} driver "${confirm?.driver.first_name} ${confirm?.driver.last_name}"?`
+        }
       />
     </div>
   );

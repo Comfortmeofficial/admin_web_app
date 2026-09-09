@@ -83,13 +83,9 @@ export interface User {
 
 // ─── Driver ───────────────────────────────────────────────────────────────────
 
-export type DriverStatus =
-  | 'available'
-  | 'assigned'
-  | 'on_trip'
-  | 'offline'
-  | 'on_leave'
-  | 'suspended';
+// active = currently on a trip (automatic); inactive = everything else
+// non-suspended; suspended = admin action.
+export type DriverStatus = 'active' | 'inactive' | 'suspended';
 
 export type DriverVerificationStatus =
   | 'pending'
@@ -180,6 +176,7 @@ export interface Bus {
   capacity: number;
   status: BusStatus;
   driver_id?: string;
+  marshal_ids: string[];
   layout?: SeatLayout;
   created_at: string;
   updated_at: string;

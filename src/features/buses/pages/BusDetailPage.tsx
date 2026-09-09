@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, User } from 'lucide-react';
+import { ArrowLeft, User, Shield, X } from 'lucide-react';
 import { busesApi } from '../api/busesApi';
 import { driversApi } from '@/features/drivers/api/driversApi';
+import { adminsApi } from '@/features/admins/api/adminsApi';
 import { SeatLayoutConfig } from './SeatLayoutDesigner';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
@@ -30,6 +31,8 @@ export function BusDetailPage() {
   const [tab, setTab] = useState('overview');
   const [showAssignDriver, setShowAssignDriver] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState('');
+  const [showAssignMarshal, setShowAssignMarshal] = useState(false);
+  const [selectedMarshal, setSelectedMarshal] = useState('');
 
   const { data: bus, isLoading } = useQuery({
     queryKey: ['bus', id],
@@ -41,6 +44,11 @@ export function BusDetailPage() {
     queryKey: ['drivers-available'],
     queryFn: () => driversApi.listAvailable(),
     enabled: showAssignDriver,
+  });
+
+  const { data: marshals = [] } = useQuery({
+    queryKey: ['admins-marshals'],
+    queryFn: () => adminsApi.listMarshals(),
   });
 
   const assignDriverMutation = useMutation({
@@ -61,6 +69,26 @@ export function BusDetailPage() {
       toast.success('Driver removed');
     },
     onError: (e) => toast.error('Failed to remove driver', getErrorMessage(e)),
+  });
+
+  const assignMarshalMutation = useMutation({
+    mutationFn: (marshalId: string) => busesApi.assignMarshal(id!, marshalId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bus', id] });
+      toast.success('Marshal assigned');
+      setShowAssignMarshal(false);
+      setSelectedMarshal('');
+    },
+    onError: (e) => toast.error('Failed to assign marshal', getErrorMessage(e)),
+  });
+
+  const unassignMarshalMutation = useMutation({
+    mutationFn: (marshalId: string) => busesApi.unassignMarshal(id!, marshalId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bus', id] });
+      toast.success('Marshal removed');
+    },
+    onError: (e) => toast.error('Failed to remove marshal', getErrorMessage(e)),
   });
 
   const updateLayoutMutation = useMutation({
@@ -171,6 +199,39 @@ export function BusDetailPage() {
                 <p className="text-sm text-gray-500">No driver currently assigned to this bus.</p>
               )}
             </Card>
+            <Card className="md:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">Marshals</h3>
+                <Button size="sm" onClick={() => setShowAssignMarshal(true)}>Assign Marshal</Button>
+              </div>
+              {bus.marshal_ids.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {bus.marshal_ids.map((marshalId) => {
+                    const marshal = marshals.find((m) => m.id === marshalId);
+                    return (
+                      <div key={marshalId} className="flex items-center justify-between gap-3 p-3 bg-blue-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Shield className="w-5 h-5 text-blue-600" />
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{marshal ? `${marshal.first_name} ${marshal.last_name}` : 'Marshal'}</p>
+                            <p className="text-xs text-gray-500">{marshal?.email ?? marshalId}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => unassignMarshalMutation.mutate(marshalId)}
+                          disabled={unassignMarshalMutation.isPending}
+                          className="p-1.5 rounded-lg hover:bg-blue-100 text-gray-400"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No marshals currently assigned to this bus.</p>
+              )}
+            </Card>
           </div>
         )}
 
@@ -207,6 +268,29 @@ export function BusDetailPage() {
           onChange={(e) => setSelectedDriver(e.target.value)}
           options={availableDrivers.map((d) => ({ value: d.id, label: `${d.first_name} ${d.last_name} — ${d.license_number}` }))}
           placeholder="Choose a driver"
+        />
+      </Modal>
+
+      <Modal
+        open={showAssignMarshal}
+        onClose={() => { setShowAssignMarshal(false); setSelectedMarshal(''); }}
+        title="Assign Marshal"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => { setShowAssignMarshal(false); setSelectedMarshal(''); }}>Cancel</Button>
+            <Button onClick={() => assignMarshalMutation.mutate(selectedMarshal)} loading={assignMarshalMutation.isPending} disabled={!selectedMarshal}>Assign</Button>
+          </>
+        }
+      >
+        <Select
+          label="Select Marshal"
+          value={selectedMarshal}
+          onChange={(e) => setSelectedMarshal(e.target.value)}
+          options={marshals
+            .filter((m) => !bus.marshal_ids.includes(m.id))
+            .map((m) => ({ value: m.id, label: `${m.first_name} ${m.last_name} — ${m.email}` }))}
+          placeholder="Choose a marshal"
         />
       </Modal>
     </div>

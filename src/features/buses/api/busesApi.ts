@@ -40,6 +40,16 @@ export const busesApi = {
     await busClient.delete(`/api/v1/buses/${busId}/driver`);
   },
 
+  assignMarshal: async (busId: string, marshalId: string) => {
+    const { data } = await busClient.post(`/api/v1/buses/${busId}/marshals`, { marshal_id: Number(marshalId) });
+    return data as Bus;
+  },
+
+  unassignMarshal: async (busId: string, marshalId: string) => {
+    const { data } = await busClient.delete(`/api/v1/buses/${busId}/marshals/${marshalId}`);
+    return data as Bus;
+  },
+
   updateLayout: async (busId: string, layout: SeatLayout) => {
     const { data } = await busClient.put(`/api/v1/buses/${busId}`, { layout });
     return data as Bus;

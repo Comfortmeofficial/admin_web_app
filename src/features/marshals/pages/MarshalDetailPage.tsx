@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Mail, Phone, MapPin, Trash2 } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MapPin, Car, Calendar, Trash2 } from 'lucide-react';
 import { adminsApi } from '@/features/admins/api/adminsApi';
 import { busesApi } from '@/features/buses/api/busesApi';
 import { Header } from '@/components/layout/Header';
@@ -20,6 +20,7 @@ import { marshalTripStatus } from '@/types';
 // this profile is read-only for it.
 const TABS = [
   { key: 'overview', label: 'Overview' },
+  { key: 'performance', label: 'Performance' },
   { key: 'trips', label: 'Trip History' },
 ];
 
@@ -46,7 +47,7 @@ export function MarshalDetailPage() {
   const { data: trips = [], isLoading: tripsLoading } = useQuery({
     queryKey: ['marshal-trips', id],
     queryFn: () => adminsApi.getTrips(id!),
-    enabled: !!id && tab === 'trips',
+    enabled: !!id && (tab === 'trips' || tab === 'performance'),
   });
 
   const updateMutation = useMutation({
@@ -167,6 +168,26 @@ export function MarshalDetailPage() {
                 ))}
               </dl>
             </Card>
+          </div>
+        )}
+
+        {tab === 'performance' && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Total Trips', value: trips.length, icon: <Car className="w-5 h-5 text-primary-600" /> },
+              {
+                label: 'Total Upcoming Trips',
+                value: trips.filter((t) => t.status === 'scheduled' || t.status === 'boarding').length,
+                icon: <Calendar className="w-5 h-5 text-amber-500" />,
+              },
+              { label: 'Assigned Bus', value: assignedPlates.length ? 'Yes' : 'None', icon: <Car className="w-5 h-5 text-blue-600" /> },
+            ].map((item) => (
+              <Card key={item.label} className="flex flex-col items-center text-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">{item.icon}</div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide">{item.label}</p>
+                <p className="text-xl font-bold text-gray-900">{item.value}</p>
+              </Card>
+            ))}
           </div>
         )}
 

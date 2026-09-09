@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Mail, Phone, MapPin, Car, Trash2 } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MapPin, Car, Calendar, Trash2 } from 'lucide-react';
 import { driversApi } from '../api/driversApi';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
@@ -42,7 +42,7 @@ export function DriverDetailPage() {
   const { data: trips = [], isLoading: tripsLoading } = useQuery({
     queryKey: ['driver-trips', id],
     queryFn: () => driversApi.getTrips(id!),
-    enabled: !!id && tab === 'trips',
+    enabled: !!id && (tab === 'trips' || tab === 'performance'),
   });
 
   const updateMutation = useMutation({
@@ -170,6 +170,11 @@ export function DriverDetailPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { label: 'Total Trips', value: driver.total_trips ?? 0, icon: <Car className="w-5 h-5 text-primary-600" /> },
+              {
+                label: 'Total Upcoming Trips',
+                value: trips.filter((t) => t.status === 'scheduled' || t.status === 'boarding').length,
+                icon: <Calendar className="w-5 h-5 text-amber-500" />,
+              },
               { label: 'Assigned Bus', value: driver.assigned_bus_id ? 'Yes' : 'None', icon: <Car className="w-5 h-5 text-blue-600" /> },
             ].map((item) => (
               <Card key={item.label} className="flex flex-col items-center text-center gap-3">

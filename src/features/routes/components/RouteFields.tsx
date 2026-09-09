@@ -6,7 +6,15 @@ import type { CreateRoutePayload, Location } from '@/types';
 
 interface RouteFieldsProps {
   value: CreateRoutePayload;
-  onChange: (value: CreateRoutePayload) => void;
+  // Accepts a functional updater (like React's setState) as well as a plain
+  // value — required here, not just convenience: the name-suggestion and
+  // distance-fetch effects below both write to `value` independently and
+  // asynchronously (the distance fetch takes seconds), so every write in
+  // this component goes through the updater form to always apply on top of
+  // the latest state instead of whatever stale `value` a given effect's
+  // closure captured when it started. Both current call sites already pass
+  // their `setState` function directly, so this just makes that explicit.
+  onChange: (value: CreateRoutePayload | ((prev: CreateRoutePayload) => CreateRoutePayload)) => void;
   locations: Location[];
 }
 
@@ -97,10 +105,9 @@ function SelectedLocationChip({ location, onClear }: { location: Location; onCle
 // Fully controlled — the parent owns the route draft and passes it down,
 // since it's just one part of a larger ride/schedule payload.
 export function RouteFields({ value, onChange, locations }: RouteFieldsProps) {
-  const [nameTouched, setNameTouched] = useState(false);
-  const [distanceTouched, setDistanceTouched] = useState(false);
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [distanceFailed, setDistanceFailed] = useState(false);
+  const [distanceRetryTick, setDistanceRetryTick] = useState(0);
   const [stopFares, setStopFares] = useState<Record<number, string>>(() =>
     Object.fromEntries((value.stops ?? []).map((s) => [s.stop_id, s.fare != null ? String(s.fare) : '']))
   );
@@ -110,37 +117,46 @@ export function RouteFields({ value, onChange, locations }: RouteFieldsProps) {
   const selectedLocation = locations.find((l) => Number(l.id) === locationId);
   const selectedDestination = locations.find((l) => Number(l.id) === destinationId);
 
-  // Suggests "Pickup — Destination" once both are picked, saving the admin
-  // from retyping what the two pickers already say — but only until they
-  // type a name themselves, so we never clobber a manual entry.
+  // Route Name and Distance are both fully derived from the pickup/
+  // destination pair — neither is a free-text field the admin fills in, so
+  // there's nothing to "leave alone once touched" any more: every time the
+  // pair changes, both are recomputed from scratch (and cleared back out if
+  // the pair becomes incomplete, so the form never shows a stale name/
+  // distance for a route it no longer actually describes).
   useEffect(() => {
-    if (nameTouched || !locationId || !destinationId) return;
     const pickup = locations.find((l) => Number(l.id) === locationId);
     const destination = locations.find((l) => Number(l.id) === destinationId);
-    if (pickup && destination) {
-      onChange({ ...value, name: `${pickup.name} — ${destination.name}` });
-    }
+    const name = pickup && destination ? `${pickup.name} — ${destination.name}` : '';
+    onChange((prev) => (prev.name === name ? prev : { ...prev, name }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationId, destinationId, nameTouched, locations]);
+  }, [locationId, destinationId, locations]);
 
-  // Same idea, via Google Directions on the backend instead of a
-  // client-side string join — silently leaves the field for manual entry
-  // if the lookup fails (e.g. no Google Maps API key configured), since
-  // this is a convenience, not a requirement.
+  // Via Google Directions on the backend — the only way distance_km ever
+  // gets set now, so a failed lookup (e.g. Directions has no route between
+  // the two points) needs its own retry rather than a manual-entry fallback.
+  // Runs concurrently with the name effect above and can take several
+  // seconds to resolve, so its onChange calls use the functional updater
+  // form too — otherwise this callback would still be holding the `value`
+  // from when the fetch started and clobber whatever the name effect (or
+  // anything else) wrote to state in the meantime.
   useEffect(() => {
-    if (distanceTouched || !locationId || !destinationId) return;
+    if (!locationId || !destinationId) {
+      setDistanceFailed(false);
+      onChange((prev) => (prev.distance_km === undefined ? prev : { ...prev, distance_km: undefined }));
+      return;
+    }
     let cancelled = false;
     setDistanceLoading(true);
     setDistanceFailed(false);
     routesApi.getDistance(String(locationId), String(destinationId))
       .then((result) => {
-        if (!cancelled) onChange({ ...value, distance_km: Math.round(result.distance_km * 10) / 10 });
+        if (!cancelled) onChange((prev) => ({ ...prev, distance_km: Math.round(result.distance_km * 10) / 10 }));
       })
       .catch(() => { if (!cancelled) setDistanceFailed(true); })
       .finally(() => { if (!cancelled) setDistanceLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationId, destinationId, distanceTouched]);
+  }, [locationId, destinationId, distanceRetryTick]);
 
   const selectedStopIds = (value.stops ?? []).map((s) => s.stop_id);
   const selectedStops = selectedStopIds
@@ -150,11 +166,11 @@ export function RouteFields({ value, onChange, locations }: RouteFieldsProps) {
   const addStop = (location: Location) => {
     const id = Number(location.id);
     if (selectedStopIds.includes(id)) return;
-    onChange({ ...value, stops: [...(value.stops ?? []), { stop_id: id, fare: undefined }] });
+    onChange((prev) => ({ ...prev, stops: [...(prev.stops ?? []), { stop_id: id, fare: undefined }] }));
   };
 
   const removeStop = (id: number) => {
-    onChange({ ...value, stops: (value.stops ?? []).filter((s) => s.stop_id !== id) });
+    onChange((prev) => ({ ...prev, stops: (prev.stops ?? []).filter((s) => s.stop_id !== id) }));
     setStopFares((prev) => {
       const next = { ...prev };
       delete next[id];
@@ -164,31 +180,31 @@ export function RouteFields({ value, onChange, locations }: RouteFieldsProps) {
 
   const setStopFare = (id: number, fareText: string) => {
     setStopFares((prev) => ({ ...prev, [id]: fareText }));
-    const nextStops = (value.stops ?? []).map((s) =>
-      s.stop_id === id ? { ...s, fare: fareText ? Number(fareText) : undefined } : s
-    );
-    onChange({ ...value, stops: nextStops });
+    onChange((prev) => ({
+      ...prev,
+      stops: (prev.stops ?? []).map((s) => (s.stop_id === id ? { ...s, fare: fareText ? Number(fareText) : undefined } : s)),
+    }));
   };
 
   return (
     <>
       <Input
         label="Route Name"
-        required
-        placeholder="Lagos — Abuja Express"
+        disabled
+        placeholder="Select a pickup location and destination…"
+        hint="Generated automatically from the pickup location and destination below."
         value={value.name ?? ''}
-        onChange={(e) => { setNameTouched(true); onChange({ ...value, name: e.target.value }); }}
       />
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">Pickup Location</label>
         {selectedLocation ? (
-          <SelectedLocationChip location={selectedLocation} onClear={() => onChange({ ...value, location_id: 0 })} />
+          <SelectedLocationChip location={selectedLocation} onClear={() => onChange((prev) => ({ ...prev, location_id: 0 }))} />
         ) : (
           <LocationSearch
             locations={locations}
             placeholder="Search locations…"
-            onSelect={(l) => onChange({ ...value, location_id: Number(l.id) })}
+            onSelect={(l) => onChange((prev) => ({ ...prev, location_id: Number(l.id) }))}
           />
         )}
       </div>
@@ -196,29 +212,40 @@ export function RouteFields({ value, onChange, locations }: RouteFieldsProps) {
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">Destination</label>
         {selectedDestination ? (
-          <SelectedLocationChip location={selectedDestination} onClear={() => onChange({ ...value, destination_id: 0 })} />
+          <SelectedLocationChip location={selectedDestination} onClear={() => onChange((prev) => ({ ...prev, destination_id: 0 }))} />
         ) : (
           <LocationSearch
             locations={locations}
             placeholder="Search locations…"
-            onSelect={(l) => onChange({ ...value, destination_id: Number(l.id) })}
+            onSelect={(l) => onChange((prev) => ({ ...prev, destination_id: Number(l.id) }))}
           />
         )}
       </div>
 
-      <Input
-        label="Distance (km)"
-        type="number"
-        hint={
-          distanceLoading
-            ? 'Calculating via Google Maps…'
-            : distanceFailed
-              ? 'Could not calculate automatically — enter the distance manually.'
-              : undefined
-        }
-        value={value.distance_km ?? ''}
-        onChange={(e) => { setDistanceTouched(true); onChange({ ...value, distance_km: Number(e.target.value) }); }}
-      />
+      <div>
+        <Input
+          label="Distance (km)"
+          disabled
+          placeholder={locationId && destinationId ? '' : 'Select a pickup location and destination…'}
+          hint={
+            distanceLoading
+              ? 'Calculating via Google Maps…'
+              : distanceFailed
+                ? 'Could not calculate a distance between these two locations.'
+                : 'Calculated automatically via Google Maps once both locations are selected.'
+          }
+          value={distanceLoading ? '' : (value.distance_km ?? '')}
+        />
+        {distanceFailed && !distanceLoading && (
+          <button
+            type="button"
+            onClick={() => setDistanceRetryTick((t) => t + 1)}
+            className="mt-1 text-xs font-medium text-blue-600 hover:text-blue-700"
+          >
+            Retry
+          </button>
+        )}
+      </div>
 
       <div>
         <p className="text-sm font-medium text-gray-700 mb-1">Pickup Stops <span className="text-gray-400 font-normal">(optional)</span></p>

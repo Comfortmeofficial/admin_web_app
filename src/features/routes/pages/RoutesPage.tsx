@@ -42,7 +42,9 @@ export function RoutesPage() {
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
-  const filtered = locations.filter((l) => l.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = locations
+    .filter((l) => l.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const columns: Column<Location>[] = [
     {

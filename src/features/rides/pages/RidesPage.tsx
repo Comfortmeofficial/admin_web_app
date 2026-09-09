@@ -161,8 +161,6 @@ interface RideFormProps {
 
 function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
   const { data: locations = [] } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations });
-  const { data: destinations = [] } = useQuery({ queryKey: ['destinations'], queryFn: routesApi.listDestinations });
-  const { data: stops = [] } = useQuery({ queryKey: ['stops'], queryFn: routesApi.listStops });
   const { data: buses = [] } = useQuery({ queryKey: ['buses'], queryFn: busesApi.list });
   const { data: allDrivers = [] } = useQuery({ queryKey: ['drivers'], queryFn: () => driversApi.list() });
   const drivers = allDrivers.filter((d) => d.status !== 'suspended');
@@ -185,7 +183,7 @@ function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
       footer={<><Button variant="outline" onClick={handleClose} disabled={loading}>Cancel</Button><Button onClick={submit} loading={loading}>Create Ride</Button></>}
     >
       <div className="grid grid-cols-1 gap-4">
-        <RouteFields value={route} onChange={setRoute} locations={locations} destinations={destinations} stops={stops} />
+        <RouteFields value={route} onChange={setRoute} locations={locations} />
         <Select label="Bus" required options={buses.map((b) => ({ value: b.id, label: `${b.plate_number} — ${b.model}` }))} placeholder="Select bus" {...register('bus_id', { required: 'Required', valueAsNumber: true })} error={errors.bus_id?.message} />
         <Select label="Driver" required options={drivers.map((d) => ({ value: d.id, label: `${d.first_name} ${d.last_name}` }))} placeholder="Select driver" {...register('driver_id', { required: 'Required', valueAsNumber: true })} error={errors.driver_id?.message} />
         <div className="grid grid-cols-2 gap-3">

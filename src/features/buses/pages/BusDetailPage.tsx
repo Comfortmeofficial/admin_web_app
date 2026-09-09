@@ -45,6 +45,7 @@ export function BusDetailPage() {
   const [docTitle, setDocTitle] = useState('');
   const [docImage, setDocImage] = useState<string | null>(null);
   const [deleteDocument, setDeleteDocument] = useState<BusDocument | null>(null);
+  const [showRetire, setShowRetire] = useState(false);
   const pictureInputRef = useRef<HTMLInputElement>(null);
 
   const { data: bus, isLoading } = useQuery({
@@ -119,6 +120,25 @@ export function BusDetailPage() {
     onError: (e) => toast.error('Failed to save layout', getErrorMessage(e)),
   });
 
+  const updateStatusMutation = useMutation({
+    mutationFn: (status: 'active' | 'maintenance') => busesApi.update(id!, { status }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bus', id] });
+      toast.success('Status updated');
+    },
+    onError: (e) => toast.error('Failed to update status', getErrorMessage(e)),
+  });
+
+  const retireMutation = useMutation({
+    mutationFn: () => busesApi.retire(id!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['buses'] });
+      toast.success('Bus retired');
+      navigate('/buses');
+    },
+    onError: (e) => toast.error('Failed to retire bus', getErrorMessage(e)),
+  });
+
   const updatePictureMutation = useMutation({
     mutationFn: (picture: string) => busesApi.update(id!, { picture }),
     onSuccess: () => {
@@ -184,10 +204,13 @@ export function BusDetailPage() {
           </div>
           <div className="flex items-center gap-2">
             {bus.status === 'maintenance' ? (
-              <Button variant="primary" size="sm" onClick={() => busesApi.update(bus.id, { status: 'active' })}>Set Active</Button>
+              <Button variant="primary" size="sm" loading={updateStatusMutation.isPending} onClick={() => updateStatusMutation.mutate('active')}>Set Active</Button>
             ) : (
-              <Button variant="outline" size="sm" onClick={() => busesApi.update(bus.id, { status: 'maintenance' })}>Set Maintenance</Button>
+              <Button variant="outline" size="sm" loading={updateStatusMutation.isPending} onClick={() => updateStatusMutation.mutate('maintenance')}>Set Maintenance</Button>
             )}
+            <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setShowRetire(true)}>
+              Retire Bus
+            </Button>
           </div>
         </Card>
 
@@ -551,6 +574,15 @@ export function BusDetailPage() {
         onConfirm={() => deleteDocumentMutation.mutate(deleteDocument!.id)}
         loading={deleteDocumentMutation.isPending}
         message={`Remove document "${deleteDocument?.title}"?`}
+      />
+
+      <ConfirmDialog
+        open={showRetire}
+        onClose={() => setShowRetire(false)}
+        onConfirm={() => retireMutation.mutate()}
+        loading={retireMutation.isPending}
+        message={`Retire bus "${bus.plate_number}"? This will mark it as retired and remove it from the active buses list.`}
+        confirmLabel="Retire Bus"
       />
     </div>
   );

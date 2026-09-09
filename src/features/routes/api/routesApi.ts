@@ -1,8 +1,11 @@
 import { bookingClient } from '@/lib/api';
-import type { Route, CreateRoutePayload, Location, Destination, Stop } from '@/types';
+import type { Route, CreateRoutePayload, Location } from '@/types';
 
 export const routesApi = {
-  // Locations
+  // Locations — the single place list routes are built from. destinations/
+  // stops still exist as their own DB tables (the mobile app reads them
+  // directly), but the admin only ever manages Locations; createRoute
+  // mirrors picked locations into those tables server-side as needed.
   listLocations: async () => {
     const { data } = await bookingClient.get('/api/v1/locations');
     return data as Location[];
@@ -17,36 +20,6 @@ export const routesApi = {
   },
   deleteLocation: async (id: string) => {
     await bookingClient.delete(`/api/v1/locations/${id}`);
-  },
-
-  // Destinations
-  listDestinations: async () => {
-    const { data } = await bookingClient.get('/api/v1/destinations');
-    return data as Destination[];
-  },
-  createDestination: async (payload: { name: string; state?: string }) => {
-    const { data } = await bookingClient.post('/api/v1/destinations', payload);
-    return data as Destination;
-  },
-  updateDestination: async (id: string, payload: Partial<Destination>) => {
-    const { data } = await bookingClient.put(`/api/v1/destinations/${id}`, payload);
-    return data as Destination;
-  },
-  deleteDestination: async (id: string) => {
-    await bookingClient.delete(`/api/v1/destinations/${id}`);
-  },
-
-  // Stops
-  listStops: async () => {
-    const { data } = await bookingClient.get('/api/v1/stops');
-    return data as Stop[];
-  },
-  createStop: async (payload: { name: string; state: string }) => {
-    const { data } = await bookingClient.post('/api/v1/stops', payload);
-    return data as Stop;
-  },
-  deleteStop: async (id: string) => {
-    await bookingClient.delete(`/api/v1/stops/${id}`);
   },
 
   // Routes

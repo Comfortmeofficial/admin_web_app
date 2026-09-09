@@ -288,7 +288,7 @@ export function BusDetailPage() {
           value={selectedMarshal}
           onChange={(e) => setSelectedMarshal(e.target.value)}
           options={marshals
-            .filter((m) => !bus.marshal_ids.includes(m.id))
+            .filter((m) => m.is_active && !bus.marshal_ids.includes(m.id))
             .map((m) => ({ value: m.id, label: `${m.first_name} ${m.last_name} — ${m.email}` }))}
           placeholder="Choose a marshal"
         />

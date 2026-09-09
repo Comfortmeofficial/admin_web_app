@@ -1,5 +1,5 @@
 import { adminClient } from '@/lib/api';
-import type { Admin, CreateAdminPayload, UpdateAdminPayload } from '@/types';
+import type { Admin, CreateAdminPayload, Marshal, Ride, UpdateAdminPayload } from '@/types';
 
 export const adminsApi = {
   list: async (params: { skip?: number; limit?: number } = {}) => {
@@ -47,6 +47,16 @@ export const adminsApi = {
 
   listMarshals: async () => {
     const { data } = await adminClient.get('/api/v1/admins/marshals');
-    return data as Admin[];
+    return data as Marshal[];
+  },
+
+  getMarshal: async (id: string) => {
+    const { data } = await adminClient.get(`/api/v1/admins/marshals/${id}`);
+    return data as Marshal;
+  },
+
+  getTrips: async (id: string) => {
+    const { data } = await adminClient.get(`/api/v1/admins/${id}/trips`);
+    return data as Ride[];
   },
 };

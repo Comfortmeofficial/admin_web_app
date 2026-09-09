@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Plus, MoreVertical, Eye, Power, Download, Trash2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
-import { driversApi } from '../api/driversApi';
+import { adminsApi } from '@/features/admins/api/adminsApi';
 import { busesApi } from '@/features/buses/api/busesApi';
 import { Header } from '@/components/layout/Header';
 import { Table, type Column } from '@/components/ui/Table';
@@ -14,34 +14,31 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Input } from '@/components/ui/Input';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Tabs } from '@/components/ui/Tabs';
-import { Pagination } from '@/components/ui/Pagination';
 import { useToast } from '@/components/ui/Toast';
-import { formatDate, getErrorMessage, slugToLabel, exportToCsv } from '@/lib/utils';
-import { PAGE_SIZE } from '@/lib/constants';
-import type { Driver, CreateDriverPayload } from '@/types';
+import { getErrorMessage, slugToLabel, exportToCsv } from '@/lib/utils';
+import { marshalTripStatus } from '@/types';
+import type { Marshal, CreateAdminPayload } from '@/types';
 
 const STATUS_TABS = [
-  { key: 'all', label: 'All Drivers' },
+  { key: 'all', label: 'All Marshals' },
   { key: 'active', label: 'Active' },
   { key: 'inactive', label: 'Inactive' },
   { key: 'suspended', label: 'Suspended' },
 ];
 
-export function DriversPage() {
+export function MarshalsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
   const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
   const [statusTab, setStatusTab] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
   const [actionMenu, setActionMenu] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<{ driver: Driver; action: string } | null>(null);
+  const [confirm, setConfirm] = useState<{ marshal: Marshal; action: string } | null>(null);
 
-  const { data: drivers = [], isLoading } = useQuery({
-    queryKey: ['drivers', page],
-    queryFn: () => driversApi.list({ skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE }),
-    placeholderData: (prev) => prev,
+  const { data: marshals = [], isLoading } = useQuery({
+    queryKey: ['admins', 'marshals'],
+    queryFn: () => adminsApi.listMarshals(),
   });
 
   const { data: buses = [] } = useQuery({
@@ -50,54 +47,54 @@ export function DriversPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: driversApi.create,
+    mutationFn: (payload: CreateAdminPayload) => adminsApi.create({ ...payload, role: 'bus_marshal' }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['drivers'] });
-      toast.success('Driver created');
+      qc.invalidateQueries({ queryKey: ['admins', 'marshals'] });
+      toast.success('Marshal created');
       setShowCreate(false);
     },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
   const suspendMutation = useMutation({
-    mutationFn: (id: string) => driversApi.suspend(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['drivers'] }); toast.success('Driver suspended'); setConfirm(null); },
+    mutationFn: (id: string) => adminsApi.suspend(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admins', 'marshals'] }); toast.success('Marshal suspended'); setConfirm(null); },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
   const reinstateMutation = useMutation({
-    mutationFn: (id: string) => driversApi.reinstate(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['drivers'] }); toast.success('Driver reinstated'); setConfirm(null); },
+    mutationFn: (id: string) => adminsApi.activate(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admins', 'marshals'] }); toast.success('Marshal reinstated'); setConfirm(null); },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => driversApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['drivers'] }); toast.success('Driver deleted'); setConfirm(null); },
+    mutationFn: (id: string) => adminsApi.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admins', 'marshals'] }); toast.success('Marshal deleted'); setConfirm(null); },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
-  const filtered = drivers.filter((d) => {
-    const matchesSearch = `${d.first_name} ${d.last_name} ${d.email} ${d.phone} ${d.license_number}`
+  const filtered = marshals.filter((m) => {
+    const matchesSearch = `${m.first_name} ${m.last_name} ${m.email}`
       .toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusTab === 'all' || d.status === statusTab;
+    const matchesStatus = statusTab === 'all' || marshalTripStatus(m) === statusTab;
     return matchesSearch && matchesStatus;
   });
 
   const handleAction = () => {
     if (!confirm) return;
-    const { driver, action } = confirm;
-    if (action === 'suspend') suspendMutation.mutate(driver.id);
-    else if (action === 'reinstate') reinstateMutation.mutate(driver.id);
-    else if (action === 'delete') deleteMutation.mutate(driver.id);
+    const { marshal, action } = confirm;
+    if (action === 'suspend') suspendMutation.mutate(marshal.id);
+    else if (action === 'reinstate') reinstateMutation.mutate(marshal.id);
+    else if (action === 'delete') deleteMutation.mutate(marshal.id);
   };
 
   const isPending = suspendMutation.isPending || reinstateMutation.isPending || deleteMutation.isPending;
 
-  const columns: Column<Driver>[] = [
+  const columns: Column<Marshal>[] = [
     {
-      key: 'driver',
-      header: 'Driver',
+      key: 'marshal',
+      header: 'Marshal',
       cell: (row) => (
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-semibold flex-shrink-0">
@@ -110,25 +107,26 @@ export function DriversPage() {
         </div>
       ),
     },
-    { key: 'phone', header: 'Phone', cell: (r) => r.phone },
-    { key: 'license', header: 'License', cell: (r) => <span className="font-mono text-xs">{r.license_number}</span> },
-    { key: 'license_expiry', header: 'License Expiry', cell: (r) => formatDate(r.license_expiry) },
+    { key: 'phone', header: 'Phone', cell: (r) => r.phone ?? '—' },
     {
       key: 'status',
       header: 'Trip Status',
-      cell: (r) => (
-        <Badge variant={statusBadge(r.status)} dot>
-          {slugToLabel(r.status)}
-        </Badge>
-      ),
+      cell: (r) => {
+        const status = marshalTripStatus(r);
+        return (
+          <Badge variant={statusBadge(status)} dot>
+            {slugToLabel(status)}
+          </Badge>
+        );
+      },
     },
     {
       key: 'assigned_bus',
       header: 'Assigned Bus',
       cell: (r) => {
-        if (!r.assigned_bus_id) return <span className="text-gray-400">—</span>;
-        const bus = buses.find((b) => b.id === r.assigned_bus_id);
-        return bus ? bus.plate_number : r.assigned_bus_id;
+        if (r.assigned_bus_ids.length === 0) return <span className="text-gray-400">—</span>;
+        const plates = r.assigned_bus_ids.map((busId) => buses.find((b) => b.id === busId)?.plate_number ?? busId);
+        return plates.join(', ');
       },
     },
     {
@@ -144,14 +142,13 @@ export function DriversPage() {
           </button>
           {actionMenu === row.id && (
             <div className="absolute right-0 top-8 z-10 bg-white rounded-lg shadow-lg border border-gray-200 min-w-[168px] py-1">
-              <button onClick={() => { navigate(`/drivers/${row.id}`); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"><Eye className="w-3.5 h-3.5" /> View Profile</button>
-              {row.status !== 'suspended' ? (
-                <button onClick={() => { setConfirm({ driver: row, action: 'suspend' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 w-full"><Power className="w-3.5 h-3.5" /> Suspend</button>
-              ) : null}
-              {row.status === 'suspended' ? (
-                <button onClick={() => { setConfirm({ driver: row, action: 'reinstate' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-green-600 hover:bg-green-50 w-full"><Power className="w-3.5 h-3.5" /> Reinstate</button>
-              ) : null}
-              <button onClick={() => { setConfirm({ driver: row, action: 'delete' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-full"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
+              <button onClick={() => { navigate(`/marshals/${row.id}`); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"><Eye className="w-3.5 h-3.5" /> View Profile</button>
+              {row.is_active ? (
+                <button onClick={() => { setConfirm({ marshal: row, action: 'suspend' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 w-full"><Power className="w-3.5 h-3.5" /> Suspend</button>
+              ) : (
+                <button onClick={() => { setConfirm({ marshal: row, action: 'reinstate' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-green-600 hover:bg-green-50 w-full"><Power className="w-3.5 h-3.5" /> Reinstate</button>
+              )}
+              <button onClick={() => { setConfirm({ marshal: row, action: 'delete' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-full"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
             </div>
           )}
         </div>
@@ -162,24 +159,24 @@ export function DriversPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Driver Management" subtitle="Manage drivers and operations" />
+      <Header title="Bus Marshal Management" subtitle="Manage bus marshals and operations" />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
             <div>
-              <h2 className="font-semibold text-gray-900">All Drivers</h2>
-              <p className="text-xs text-gray-500 mt-0.5">{drivers.length} drivers</p>
+              <h2 className="font-semibold text-gray-900">All Bus Marshals</h2>
+              <p className="text-xs text-gray-500 mt-0.5">{marshals.length} marshals</p>
             </div>
             <div className="flex items-center gap-3">
-              <SearchInput value={search} onChange={setSearch} placeholder="Search drivers…" className="w-56" />
-              <Button variant="outline" size="sm" icon={<Download className="w-3.5 h-3.5" />} onClick={() => exportToCsv(drivers, 'drivers')}>Export</Button>
-              <Button icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreate(true)}>Add Driver</Button>
+              <SearchInput value={search} onChange={setSearch} placeholder="Search marshals…" className="w-56" />
+              <Button variant="outline" size="sm" icon={<Download className="w-3.5 h-3.5" />} onClick={() => exportToCsv(marshals, 'bus-marshals')}>Export</Button>
+              <Button icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreate(true)}>Add Marshal</Button>
             </div>
           </div>
 
           <div className="px-5 pt-3 border-b border-gray-100">
-            <Tabs tabs={STATUS_TABS} active={statusTab} onChange={(k) => { setStatusTab(k); setPage(1); }} />
+            <Tabs tabs={STATUS_TABS} active={statusTab} onChange={setStatusTab} />
           </div>
 
           <Table
@@ -187,17 +184,13 @@ export function DriversPage() {
             data={filtered}
             loading={isLoading}
             rowKey={(r) => r.id}
-            onRowClick={(r) => navigate(`/drivers/${r.id}`)}
-            emptyMessage="No drivers found"
+            onRowClick={(r) => navigate(`/marshals/${r.id}`)}
+            emptyMessage="No marshals found"
           />
-
-          <div className="px-5 py-4 border-t border-gray-100">
-            <Pagination page={page} pageSize={PAGE_SIZE} total={drivers.length >= PAGE_SIZE ? page * PAGE_SIZE + 1 : (page - 1) * PAGE_SIZE + drivers.length} onChange={setPage} />
-          </div>
         </div>
       </div>
 
-      <DriverForm open={showCreate} onClose={() => setShowCreate(false)} onSubmit={(p) => createMutation.mutate(p)} loading={createMutation.isPending} />
+      <MarshalForm open={showCreate} onClose={() => setShowCreate(false)} onSubmit={(p) => createMutation.mutate(p)} loading={createMutation.isPending} />
 
       <ConfirmDialog
         open={!!confirm}
@@ -208,25 +201,25 @@ export function DriversPage() {
         confirmLabel={confirm?.action ? slugToLabel(confirm.action) : 'Confirm'}
         message={
           confirm?.action === 'delete'
-            ? `Delete driver "${confirm?.driver.first_name} ${confirm?.driver.last_name}"? This removes them from active use — for drivers who are no longer with the company.`
-            : `Are you sure you want to ${confirm?.action} driver "${confirm?.driver.first_name} ${confirm?.driver.last_name}"?`
+            ? `Delete marshal "${confirm?.marshal.first_name} ${confirm?.marshal.last_name}"? This removes them from active use — for marshals who are no longer with the company.`
+            : `Are you sure you want to ${confirm?.action} marshal "${confirm?.marshal.first_name} ${confirm?.marshal.last_name}"?`
         }
       />
     </div>
   );
 }
 
-interface DriverFormProps {
+interface MarshalFormProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (p: CreateDriverPayload) => void;
+  onSubmit: (p: CreateAdminPayload) => void;
   loading?: boolean;
-  defaultValues?: Partial<Driver>;
+  defaultValues?: Partial<Marshal>;
   isEdit?: boolean;
 }
 
-export function DriverForm({ open, onClose, onSubmit, loading, defaultValues, isEdit }: DriverFormProps) {
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateDriverPayload>({
+export function MarshalForm({ open, onClose, onSubmit, loading, defaultValues, isEdit }: MarshalFormProps) {
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateAdminPayload>({
     defaultValues: {
       first_name: defaultValues?.first_name ?? '',
       last_name: defaultValues?.last_name ?? '',
@@ -236,8 +229,7 @@ export function DriverForm({ open, onClose, onSubmit, loading, defaultValues, is
       next_of_kin: defaultValues?.next_of_kin ?? '',
       next_of_kin_phone: defaultValues?.next_of_kin_phone ?? '',
       next_of_kin_relationship: defaultValues?.next_of_kin_relationship ?? '',
-      license_number: defaultValues?.license_number ?? '',
-      license_expiry: defaultValues?.license_expiry?.split('T')[0] ?? '',
+      password: '',
     },
   });
 
@@ -247,12 +239,12 @@ export function DriverForm({ open, onClose, onSubmit, loading, defaultValues, is
     <Modal
       open={open}
       onClose={() => { onClose(); reset(); }}
-      title={isEdit ? 'Edit Driver' : 'Add New Driver'}
+      title={isEdit ? 'Edit Marshal' : 'Add New Marshal'}
       size="xl"
       footer={
         <>
           <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button onClick={submit} loading={loading}>{isEdit ? 'Save Changes' : 'Create Driver'}</Button>
+          <Button onClick={submit} loading={loading}>{isEdit ? 'Save Changes' : 'Create Marshal'}</Button>
         </>
       }
     >
@@ -263,7 +255,7 @@ export function DriverForm({ open, onClose, onSubmit, loading, defaultValues, is
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Input label="Email" type="email" required {...register('email', { required: 'Required' })} error={errors.email?.message} />
-          <Input label="Phone" required {...register('phone', { required: 'Required' })} error={errors.phone?.message} />
+          <Input label="Phone" {...register('phone')} />
         </div>
         <Input label="Address" {...register('address')} />
         <div className="grid grid-cols-3 gap-3">
@@ -271,10 +263,9 @@ export function DriverForm({ open, onClose, onSubmit, loading, defaultValues, is
           <Input label="Next of Kin Phone" {...register('next_of_kin_phone')} />
           <Input label="Relationship" placeholder="e.g. Spouse, Mother" {...register('next_of_kin_relationship')} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="License Number" required {...register('license_number', { required: 'Required' })} error={errors.license_number?.message} />
-          <Input label="License Expiry" type="date" required {...register('license_expiry', { required: 'Required' })} error={errors.license_expiry?.message} />
-        </div>
+        {!isEdit && (
+          <Input label="Password" type="password" required {...register('password', { required: 'Required', minLength: { value: 8, message: 'Min 8 chars' } })} error={errors.password?.message} />
+        )}
       </div>
     </Modal>
   );

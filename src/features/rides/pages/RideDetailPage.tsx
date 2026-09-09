@@ -366,10 +366,12 @@ export function RideDetailPage() {
             const marshal = marshals.find((m) => String(m.id) === e.target.value) ?? null;
             setSelectedMarshal(marshal);
           }}
-          options={marshals.map((m) => ({
-            value: m.id,
-            label: `${m.first_name} ${m.last_name} — ${m.email}`,
-          }))}
+          options={marshals
+            .filter((m) => m.is_active)
+            .map((m) => ({
+              value: m.id,
+              label: `${m.first_name} ${m.last_name} — ${m.email}`,
+            }))}
           placeholder={marshals.length ? 'Choose a marshal' : 'No active bus marshals yet'}
         />
       </Modal>

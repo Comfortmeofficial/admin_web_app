@@ -38,6 +38,7 @@ const navItems: NavItem[] = [
   { label: 'Admins', path: '/admins', icon: <ShieldCheck className="w-5 h-5" />, roles: ['super_admin'] },
   { label: 'Users', path: '/users', icon: <Users className="w-5 h-5" /> },
   { label: 'Drivers', path: '/drivers', icon: <Car className="w-5 h-5" /> },
+  { label: 'Bus Marshals', path: '/marshals', icon: <Shield className="w-5 h-5" /> },
   { label: 'Buses', path: '/buses', icon: <Bus className="w-5 h-5" /> },
   { label: 'Locations', path: '/locations', icon: <MapPin className="w-5 h-5" /> },
   { label: 'Schedules', path: '/schedules', icon: <Repeat className="w-5 h-5" /> },

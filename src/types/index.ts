@@ -34,8 +34,29 @@ export interface Admin {
   last_name: string;
   role: AdminRole;
   is_active: boolean;
+  phone?: string;
+  address?: string;
+  next_of_kin?: string;
+  next_of_kin_phone?: string;
+  next_of_kin_relationship?: string;
   created_at: string;
   updated_at: string;
+}
+
+// A marshal is an Admin with role 'bus_marshal', enriched with derived trip
+// state — mirrors Driver's assigned_bus_id/current_ride_id, except a
+// marshal can be on more than one bus (assigned_bus_ids), and "active"
+// trip status is derived from current_ride_id rather than a stored column.
+export interface Marshal extends Admin {
+  current_ride_id?: string | null;
+  assigned_bus_ids: string[];
+}
+
+export type MarshalTripStatus = 'active' | 'inactive' | 'suspended';
+
+export function marshalTripStatus(m: Marshal): MarshalTripStatus {
+  if (!m.is_active) return 'suspended';
+  return m.current_ride_id ? 'active' : 'inactive';
 }
 
 export interface AuthTokens {
@@ -57,6 +78,11 @@ export interface CreateAdminPayload {
   last_name: string;
   role: AdminRole;
   password: string;
+  phone?: string;
+  address?: string;
+  next_of_kin?: string;
+  next_of_kin_phone?: string;
+  next_of_kin_relationship?: string;
 }
 
 export interface UpdateAdminPayload {
@@ -65,6 +91,11 @@ export interface UpdateAdminPayload {
   last_name?: string;
   role?: AdminRole;
   is_active?: boolean;
+  phone?: string;
+  address?: string;
+  next_of_kin?: string;
+  next_of_kin_phone?: string;
+  next_of_kin_relationship?: string;
 }
 
 // ─── User ─────────────────────────────────────────────────────────────────────

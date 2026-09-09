@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Mail, Phone, MapPin, Car, Trash2 } from 'lucide-react';
-import { driversApi } from '../api/driversApi';
+import { ArrowLeft, Mail, Phone, MapPin, Trash2 } from 'lucide-react';
+import { adminsApi } from '@/features/admins/api/adminsApi';
+import { busesApi } from '@/features/buses/api/busesApi';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
 import { Badge, statusBadge } from '@/components/ui/Badge';
@@ -12,19 +13,17 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import { formatDate, formatDateTime, getErrorMessage, slugToLabel } from '@/lib/utils';
 import { Card } from '@/components/ui/Tabs';
-import { DriverForm } from './DriversPage';
-import type { Driver } from '@/types';
+import { MarshalForm } from './MarshalsPage';
+import { marshalTripStatus } from '@/types';
 
-// Bus and ride assignment happen only from the Buses/Rides pages now — this
-// profile is read-only for both (see "Assigned Bus"/current ride under
-// Performance), so there's no separate Assignment tab here anymore.
+// Bus assignment happens only from the Buses page now, same as drivers —
+// this profile is read-only for it.
 const TABS = [
   { key: 'overview', label: 'Overview' },
-  { key: 'performance', label: 'Performance' },
   { key: 'trips', label: 'Trip History' },
 ];
 
-export function DriverDetailPage() {
+export function MarshalDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -33,39 +32,44 @@ export function DriverDetailPage() {
   const [showEdit, setShowEdit] = useState(false);
   const [confirm, setConfirm] = useState<{ action: string } | null>(null);
 
-  const { data: driver, isLoading } = useQuery({
-    queryKey: ['driver', id],
-    queryFn: () => driversApi.get(id!),
+  const { data: marshal, isLoading } = useQuery({
+    queryKey: ['marshal', id],
+    queryFn: () => adminsApi.getMarshal(id!),
     enabled: !!id,
   });
 
+  const { data: buses = [] } = useQuery({
+    queryKey: ['buses'],
+    queryFn: () => busesApi.list(),
+  });
+
   const { data: trips = [], isLoading: tripsLoading } = useQuery({
-    queryKey: ['driver-trips', id],
-    queryFn: () => driversApi.getTrips(id!),
+    queryKey: ['marshal-trips', id],
+    queryFn: () => adminsApi.getTrips(id!),
     enabled: !!id && tab === 'trips',
   });
 
   const updateMutation = useMutation({
-    mutationFn: (payload: Partial<Driver>) => driversApi.update(id!, payload),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['driver', id] }); toast.success('Driver updated'); setShowEdit(false); },
+    mutationFn: (payload: Parameters<typeof adminsApi.update>[1]) => adminsApi.update(id!, payload),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['marshal', id] }); toast.success('Marshal updated'); setShowEdit(false); },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
   const suspendMutation = useMutation({
-    mutationFn: () => driversApi.suspend(id!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['driver', id] }); toast.success('Driver suspended'); setConfirm(null); },
+    mutationFn: () => adminsApi.suspend(id!),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['marshal', id] }); toast.success('Marshal suspended'); setConfirm(null); },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
   const reinstateMutation = useMutation({
-    mutationFn: () => driversApi.reinstate(id!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['driver', id] }); toast.success('Driver reinstated'); setConfirm(null); },
+    mutationFn: () => adminsApi.activate(id!),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['marshal', id] }); toast.success('Marshal reinstated'); setConfirm(null); },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => driversApi.delete(id!),
-    onSuccess: () => { toast.success('Driver deleted'); navigate('/drivers'); },
+    mutationFn: () => adminsApi.delete(id!),
+    onSuccess: () => { toast.success('Marshal deleted'); navigate('/marshals'); },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
@@ -77,37 +81,38 @@ export function DriverDetailPage() {
   };
 
   if (isLoading) return <PageSpinner />;
-  if (!driver) return null;
+  if (!marshal) return null;
 
   const isPending = suspendMutation.isPending || reinstateMutation.isPending || deleteMutation.isPending;
+  const status = marshalTripStatus(marshal);
+  const assignedPlates = marshal.assigned_bus_ids.map((busId) => buses.find((b) => b.id === busId)?.plate_number ?? busId);
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Driver Profile" />
+      <Header title="Marshal Profile" />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         <Button variant="ghost" icon={<ArrowLeft className="w-4 h-4" />} onClick={() => navigate(-1)}>
-          Back to Drivers
+          Back to Bus Marshals
         </Button>
 
         {/* Profile hero */}
         <Card className="flex items-start gap-6">
           <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-2xl font-bold flex-shrink-0">
-            {driver.first_name[0]}{driver.last_name[0]}
+            {marshal.first_name[0]}{marshal.last_name[0]}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">{driver.first_name} {driver.last_name}</h2>
-                <p className="text-sm text-gray-500 mt-0.5">Driver</p>
+                <h2 className="text-xl font-bold text-gray-900">{marshal.first_name} {marshal.last_name}</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Bus Marshal</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant={statusBadge(driver.status)} dot>{slugToLabel(driver.status)}</Badge>
+                <Badge variant={statusBadge(status)} dot>{slugToLabel(status)}</Badge>
                 <Button variant="outline" size="sm" onClick={() => setShowEdit(true)}>Edit Profile</Button>
-                {driver.status !== 'suspended' && (
+                {marshal.is_active ? (
                   <Button variant="danger" size="sm" onClick={() => setConfirm({ action: 'suspend' })}>Suspend</Button>
-                )}
-                {driver.status === 'suspended' && (
+                ) : (
                   <Button variant="primary" size="sm" onClick={() => setConfirm({ action: 'reinstate' })}>Reinstate</Button>
                 )}
                 <Button variant="danger" size="sm" icon={<Trash2 className="w-4 h-4" />} onClick={() => setConfirm({ action: 'delete' })}>
@@ -116,9 +121,9 @@ export function DriverDetailPage() {
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-4">
-              <div className="flex items-center gap-1.5 text-sm text-gray-600"><Mail className="w-4 h-4 text-gray-400" />{driver.email}</div>
-              <div className="flex items-center gap-1.5 text-sm text-gray-600"><Phone className="w-4 h-4 text-gray-400" />{driver.phone}</div>
-              {driver.address && <div className="flex items-center gap-1.5 text-sm text-gray-600"><MapPin className="w-4 h-4 text-gray-400" />{driver.address}</div>}
+              <div className="flex items-center gap-1.5 text-sm text-gray-600"><Mail className="w-4 h-4 text-gray-400" />{marshal.email}</div>
+              {marshal.phone && <div className="flex items-center gap-1.5 text-sm text-gray-600"><Phone className="w-4 h-4 text-gray-400" />{marshal.phone}</div>}
+              {marshal.address && <div className="flex items-center gap-1.5 text-sm text-gray-600"><MapPin className="w-4 h-4 text-gray-400" />{marshal.address}</div>}
             </div>
           </div>
         </Card>
@@ -131,14 +136,14 @@ export function DriverDetailPage() {
               <h3 className="font-semibold text-gray-900 mb-4">Personal Information</h3>
               <dl className="space-y-3">
                 {[
-                  ['Full Name', `${driver.first_name} ${driver.last_name}`],
-                  ['Email', driver.email],
-                  ['Phone', driver.phone],
-                  ['Address', driver.address ?? '—'],
-                  ['Next of Kin', driver.next_of_kin ?? '—'],
-                  ['Next of Kin Phone', driver.next_of_kin_phone ?? '—'],
-                  ['Relationship', driver.next_of_kin_relationship ?? '—'],
-                  ['Joined', formatDate(driver.created_at)],
+                  ['Full Name', `${marshal.first_name} ${marshal.last_name}`],
+                  ['Email', marshal.email],
+                  ['Phone', marshal.phone ?? '—'],
+                  ['Address', marshal.address ?? '—'],
+                  ['Next of Kin', marshal.next_of_kin ?? '—'],
+                  ['Next of Kin Phone', marshal.next_of_kin_phone ?? '—'],
+                  ['Relationship', marshal.next_of_kin_relationship ?? '—'],
+                  ['Joined', formatDate(marshal.created_at)],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between gap-4">
                     <dt className="text-sm text-gray-500">{label}</dt>
@@ -148,13 +153,12 @@ export function DriverDetailPage() {
               </dl>
             </Card>
             <Card>
-              <h3 className="font-semibold text-gray-900 mb-4">License</h3>
+              <h3 className="font-semibold text-gray-900 mb-4">Assignment</h3>
               <dl className="space-y-3">
                 {[
-                  ['License Number', driver.license_number],
-                  ['License Expiry', formatDate(driver.license_expiry)],
-                  ['Trip Status', <Badge key="a" variant={statusBadge(driver.status)} dot>{slugToLabel(driver.status)}</Badge>],
-                  ['Total Trips', driver.total_trips ?? 0],
+                  ['Trip Status', <Badge key="a" variant={statusBadge(status)} dot>{slugToLabel(status)}</Badge>],
+                  ['Assigned Bus(es)', assignedPlates.length ? assignedPlates.join(', ') : 'None'],
+                  ['Total Trips', trips.length],
                 ].map(([label, value]) => (
                   <div key={label as string} className="flex justify-between gap-4 items-center">
                     <dt className="text-sm text-gray-500">{label as string}</dt>
@@ -163,21 +167,6 @@ export function DriverDetailPage() {
                 ))}
               </dl>
             </Card>
-          </div>
-        )}
-
-        {tab === 'performance' && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: 'Total Trips', value: driver.total_trips ?? 0, icon: <Car className="w-5 h-5 text-primary-600" /> },
-              { label: 'Assigned Bus', value: driver.assigned_bus_id ? 'Yes' : 'None', icon: <Car className="w-5 h-5 text-blue-600" /> },
-            ].map((item) => (
-              <Card key={item.label} className="flex flex-col items-center text-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">{item.icon}</div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide">{item.label}</p>
-                <p className="text-xl font-bold text-gray-900">{item.value}</p>
-              </Card>
-            ))}
           </div>
         )}
 
@@ -218,13 +207,13 @@ export function DriverDetailPage() {
         )}
       </div>
 
-      {/* Edit driver modal */}
-      <DriverForm
+      {/* Edit marshal modal */}
+      <MarshalForm
         open={showEdit}
         onClose={() => setShowEdit(false)}
         onSubmit={(p) => updateMutation.mutate(p)}
         loading={updateMutation.isPending}
-        defaultValues={driver}
+        defaultValues={marshal}
         isEdit
       />
 
@@ -237,8 +226,8 @@ export function DriverDetailPage() {
         confirmLabel={confirm?.action ? slugToLabel(confirm.action) : 'Confirm'}
         message={
           confirm?.action === 'delete'
-            ? `Delete driver "${driver.first_name} ${driver.last_name}"? This removes them from active use — for drivers who are no longer with the company.`
-            : `Confirm: ${confirm?.action} driver "${driver.first_name} ${driver.last_name}"?`
+            ? `Delete marshal "${marshal.first_name} ${marshal.last_name}"? This removes them from active use — for marshals who are no longer with the company.`
+            : `Confirm: ${confirm?.action} marshal "${marshal.first_name} ${marshal.last_name}"?`
         }
       />
     </div>

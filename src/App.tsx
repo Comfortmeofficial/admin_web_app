@@ -21,6 +21,8 @@ import { UsersPage } from './features/users/pages/UsersPage';
 import { UserDetailPage } from './features/users/pages/UserDetailPage';
 import { DriversPage } from './features/drivers/pages/DriversPage';
 import { DriverDetailPage } from './features/drivers/pages/DriverDetailPage';
+import { MarshalsPage } from './features/marshals/pages/MarshalsPage';
+import { MarshalDetailPage } from './features/marshals/pages/MarshalDetailPage';
 import { BusesPage } from './features/buses/pages/BusesPage';
 import { BusDetailPage } from './features/buses/pages/BusDetailPage';
 import { RoutesPage } from './features/routes/pages/RoutesPage';
@@ -117,6 +119,10 @@ export default function App() {
                 {/* Drivers */}
                 <Route path="/drivers" element={<DriversPage />} />
                 <Route path="/drivers/:id" element={<DriverDetailPage />} />
+
+                {/* Bus Marshals */}
+                <Route path="/marshals" element={<MarshalsPage />} />
+                <Route path="/marshals/:id" element={<MarshalDetailPage />} />
 
                 {/* Buses */}
                 <Route path="/buses" element={<BusesPage />} />

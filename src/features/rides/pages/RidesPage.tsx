@@ -163,29 +163,55 @@ function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
   const { data: locations = [] } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations });
   const { data: buses = [] } = useQuery({ queryKey: ['buses'], queryFn: busesApi.list });
   const { data: allDrivers = [] } = useQuery({ queryKey: ['drivers'], queryFn: () => driversApi.list() });
-  const drivers = allDrivers.filter((d) => d.status !== 'suspended');
 
   const [route, setRoute] = useState<CreateRoutePayload>(emptyRouteDraft());
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<Omit<CreateRidePayload, 'route'>>();
+  // Driver isn't picked here any more — a bus already has exactly one
+  // assigned driver (see BusDetailPage's Assign Driver flow), so the ride
+  // just inherits it. Keeps a ride from ever silently pairing a bus with a
+  // driver other than the one actually assigned to it.
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<Omit<CreateRidePayload, 'route' | 'driver_id'>>();
+  const busId = watch('bus_id');
+  const selectedBus = buses.find((b) => Number(b.id) === Number(busId));
+  const assignedDriver = selectedBus?.driver_id
+    ? allDrivers.find((d) => Number(d.id) === Number(selectedBus.driver_id))
+    : undefined;
+
   const toRFC3339 = (dt: string) => dt ? new Date(dt).toISOString() : undefined;
-  const submit = handleSubmit((data) => onSubmit({
-    ...data,
-    route,
-    fare: Number(data.fare),
-    departure_time: toRFC3339(data.departure_time)!,
-    arrival_time: data.arrival_time ? toRFC3339(data.arrival_time) : undefined,
-  }));
+  const submit = handleSubmit((data) => {
+    if (!selectedBus?.driver_id) return;
+    onSubmit({
+      ...data,
+      driver_id: Number(selectedBus.driver_id),
+      route,
+      fare: Number(data.fare),
+      departure_time: toRFC3339(data.departure_time)!,
+      arrival_time: data.arrival_time ? toRFC3339(data.arrival_time) : undefined,
+    });
+  });
 
   const handleClose = () => { onClose(); reset(); setRoute(emptyRouteDraft()); };
 
   return (
     <Modal open={open} onClose={handleClose} title="Create Ride" size="xl"
-      footer={<><Button variant="outline" onClick={handleClose} disabled={loading}>Cancel</Button><Button onClick={submit} loading={loading}>Create Ride</Button></>}
+      footer={<><Button variant="outline" onClick={handleClose} disabled={loading}>Cancel</Button><Button onClick={submit} loading={loading} disabled={!selectedBus?.driver_id}>Create Ride</Button></>}
     >
       <div className="grid grid-cols-1 gap-4">
         <RouteFields value={route} onChange={setRoute} locations={locations} />
         <Select label="Bus" required options={buses.map((b) => ({ value: b.id, label: `${b.plate_number} — ${b.model}` }))} placeholder="Select bus" {...register('bus_id', { required: 'Required', valueAsNumber: true })} error={errors.bus_id?.message} />
-        <Select label="Driver" required options={drivers.map((d) => ({ value: d.id, label: `${d.first_name} ${d.last_name}` }))} placeholder="Select driver" {...register('driver_id', { required: 'Required', valueAsNumber: true })} error={errors.driver_id?.message} />
+        {selectedBus && (
+          selectedBus.driver_id ? (
+            <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+              <span className="text-gray-500">Driver</span>
+              <span className="font-medium text-gray-900">
+                {assignedDriver ? `${assignedDriver.first_name} ${assignedDriver.last_name}` : `#${selectedBus.driver_id}`}
+              </span>
+            </div>
+          ) : (
+            <p className="text-sm text-red-600">
+              This bus has no driver assigned — assign one from its bus details page before creating a ride.
+            </p>
+          )
+        )}
         <div className="grid grid-cols-2 gap-3">
           <Input label="Departure Time" type="datetime-local" required {...register('departure_time', { required: 'Required' })} error={errors.departure_time?.message} />
           <Input label="Arrival Time (optional)" type="datetime-local" {...register('arrival_time')} />

@@ -1,5 +1,5 @@
 import { busClient } from '@/lib/api';
-import type { Bus, CreateBusPayload, SeatLayout } from '@/types';
+import type { Bus, BusDocument, CreateBusPayload, SeatLayout } from '@/types';
 
 export const busesApi = {
   list: async () => {
@@ -53,5 +53,19 @@ export const busesApi = {
   updateLayout: async (busId: string, layout: SeatLayout) => {
     const { data } = await busClient.put(`/api/v1/buses/${busId}`, { layout });
     return data as Bus;
+  },
+
+  listDocuments: async (busId: string) => {
+    const { data } = await busClient.get(`/api/v1/buses/${busId}/documents`);
+    return data as BusDocument[];
+  },
+
+  addDocument: async (busId: string, payload: { title: string; image: string }) => {
+    const { data } = await busClient.post(`/api/v1/buses/${busId}/documents`, payload);
+    return data as BusDocument;
+  },
+
+  deleteDocument: async (busId: string, documentId: string) => {
+    await busClient.delete(`/api/v1/buses/${busId}/documents/${documentId}`);
   },
 };

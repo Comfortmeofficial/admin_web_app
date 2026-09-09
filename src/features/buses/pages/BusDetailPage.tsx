@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, User, Shield, X } from 'lucide-react';
+import { ArrowLeft, User, Shield, X, Image as ImageIcon, FileText, Trash2, Upload } from 'lucide-react';
 import { busesApi } from '../api/busesApi';
 import { driversApi } from '@/features/drivers/api/driversApi';
 import { adminsApi } from '@/features/admins/api/adminsApi';
@@ -13,14 +13,18 @@ import { Tabs } from '@/components/ui/Tabs';
 import { PageSpinner } from '@/components/ui/Spinner';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
+import { Input } from '@/components/ui/Input';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
-import { formatDate, getErrorMessage, slugToLabel } from '@/lib/utils';
+import { formatDate, fileToDataUrl, getErrorMessage, slugToLabel } from '@/lib/utils';
 import { Card } from '@/components/ui/Tabs';
-import type { SeatLayout } from '@/types';
+import { busTripStatus } from '@/types';
+import type { BusDocument, SeatLayout } from '@/types';
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'layout', label: 'Seat Layout' },
+  { key: 'documents', label: 'Documents' },
 ];
 
 export function BusDetailPage() {
@@ -33,11 +37,26 @@ export function BusDetailPage() {
   const [selectedDriver, setSelectedDriver] = useState('');
   const [showAssignMarshal, setShowAssignMarshal] = useState(false);
   const [selectedMarshal, setSelectedMarshal] = useState('');
+  const [showEditInsurance, setShowEditInsurance] = useState(false);
+  const [insuranceIncorporationDate, setInsuranceIncorporationDate] = useState('');
+  const [insuranceExpiryDate, setInsuranceExpiryDate] = useState('');
+  const [insuranceFile, setInsuranceFile] = useState<string | null>(null);
+  const [showAddDocument, setShowAddDocument] = useState(false);
+  const [docTitle, setDocTitle] = useState('');
+  const [docImage, setDocImage] = useState<string | null>(null);
+  const [deleteDocument, setDeleteDocument] = useState<BusDocument | null>(null);
+  const pictureInputRef = useRef<HTMLInputElement>(null);
 
   const { data: bus, isLoading } = useQuery({
     queryKey: ['bus', id],
     queryFn: () => busesApi.get(id!),
     enabled: !!id,
+  });
+
+  const { data: documents = [], isLoading: documentsLoading } = useQuery({
+    queryKey: ['bus-documents', id],
+    queryFn: () => busesApi.listDocuments(id!),
+    enabled: !!id && tab === 'documents',
   });
 
   const { data: availableDrivers = [] } = useQuery({
@@ -100,6 +119,49 @@ export function BusDetailPage() {
     onError: (e) => toast.error('Failed to save layout', getErrorMessage(e)),
   });
 
+  const updatePictureMutation = useMutation({
+    mutationFn: (picture: string) => busesApi.update(id!, { picture }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bus', id] });
+      toast.success('Bus picture updated');
+    },
+    onError: (e) => toast.error('Failed to update picture', getErrorMessage(e)),
+  });
+
+  const updateInsuranceMutation = useMutation({
+    mutationFn: (payload: { insurance_document?: string; insurance_incorporation_date?: string; insurance_expiry_date?: string }) =>
+      busesApi.update(id!, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bus', id] });
+      toast.success('Insurance details saved');
+      setShowEditInsurance(false);
+      setInsuranceFile(null);
+    },
+    onError: (e) => toast.error('Failed to save insurance details', getErrorMessage(e)),
+  });
+
+  const addDocumentMutation = useMutation({
+    mutationFn: (payload: { title: string; image: string }) => busesApi.addDocument(id!, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bus-documents', id] });
+      toast.success('Document added');
+      setShowAddDocument(false);
+      setDocTitle('');
+      setDocImage(null);
+    },
+    onError: (e) => toast.error('Failed to add document', getErrorMessage(e)),
+  });
+
+  const deleteDocumentMutation = useMutation({
+    mutationFn: (documentId: string) => busesApi.deleteDocument(id!, documentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bus-documents', id] });
+      toast.success('Document removed');
+      setDeleteDocument(null);
+    },
+    onError: (e) => toast.error('Failed to remove document', getErrorMessage(e)),
+  });
+
   if (isLoading) return <PageSpinner />;
   if (!bus) return null;
 
@@ -140,7 +202,7 @@ export function BusDetailPage() {
                   ['Plate Number', bus.plate_number],
                   ['Model', bus.model],
                   ['Capacity', `${bus.capacity} seats`],
-                  ['Status', <Badge key="s" variant={statusBadge(bus.status)} dot>{slugToLabel(bus.status)}</Badge>],
+                  ['Trip Status', <Badge key="s" variant={statusBadge(busTripStatus(bus))} dot>{slugToLabel(busTripStatus(bus))}</Badge>],
                   ['Added', formatDate(bus.created_at)],
                   ['Updated', formatDate(bus.updated_at)],
                 ].map(([label, value]) => (
@@ -248,6 +310,108 @@ export function BusDetailPage() {
             />
           </Card>
         )}
+
+        {tab === 'documents' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">Bus Picture</h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={<Upload className="w-3.5 h-3.5" />}
+                  loading={updatePictureMutation.isPending}
+                  onClick={() => pictureInputRef.current?.click()}
+                >
+                  {bus.picture ? 'Replace' : 'Upload'}
+                </Button>
+                <input
+                  ref={pictureInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const dataUrl = await fileToDataUrl(file);
+                    updatePictureMutation.mutate(dataUrl);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+              {bus.picture ? (
+                <img src={bus.picture} alt={bus.plate_number} className="w-full h-48 object-cover rounded-lg" />
+              ) : (
+                <div className="w-full h-48 rounded-lg bg-gray-50 border border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 text-gray-400">
+                  <ImageIcon className="w-8 h-8" />
+                  <p className="text-sm">No picture uploaded</p>
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">Insurance</h3>
+                <Button variant="outline" size="sm" onClick={() => {
+                  setInsuranceIncorporationDate(bus.insurance_incorporation_date?.split('T')[0] ?? '');
+                  setInsuranceExpiryDate(bus.insurance_expiry_date?.split('T')[0] ?? '');
+                  setInsuranceFile(null);
+                  setShowEditInsurance(true);
+                }}>
+                  {bus.insurance_document ? 'Edit' : 'Add'}
+                </Button>
+              </div>
+              {bus.insurance_document ? (
+                <img src={bus.insurance_document} alt="Insurance document" className="w-full h-32 object-cover rounded-lg mb-3" />
+              ) : (
+                <div className="w-full h-32 rounded-lg bg-gray-50 border border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 text-gray-400 mb-3">
+                  <FileText className="w-8 h-8" />
+                  <p className="text-sm">No insurance document uploaded</p>
+                </div>
+              )}
+              <dl className="space-y-2">
+                {[
+                  ['Incorporation Date', bus.insurance_incorporation_date ? formatDate(bus.insurance_incorporation_date) : '—'],
+                  ['Expiry Date', bus.insurance_expiry_date ? formatDate(bus.insurance_expiry_date) : '—'],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-4">
+                    <dt className="text-sm text-gray-500">{label}</dt>
+                    <dd className="text-sm font-medium text-gray-900">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Card>
+
+            <Card className="md:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">Documents</h3>
+                <Button size="sm" icon={<Upload className="w-3.5 h-3.5" />} onClick={() => setShowAddDocument(true)}>Add Document</Button>
+              </div>
+              {documentsLoading ? (
+                <p className="text-sm text-gray-500">Loading documents…</p>
+              ) : documents.length === 0 ? (
+                <p className="text-sm text-gray-500">No documents uploaded for this bus.</p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {documents.map((doc) => (
+                    <div key={doc.id} className="relative border border-gray-200 rounded-lg overflow-hidden group">
+                      <img src={doc.image} alt={doc.title} className="w-full h-28 object-cover" />
+                      <div className="p-2">
+                        <p className="text-xs font-medium text-gray-900 truncate">{doc.title}</p>
+                      </div>
+                      <button
+                        onClick={() => setDeleteDocument(doc)}
+                        className="absolute top-1.5 right-1.5 p-1 rounded-full bg-white/90 hover:bg-red-50 text-gray-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
       </div>
 
       <Modal
@@ -293,6 +457,100 @@ export function BusDetailPage() {
           placeholder="Choose a marshal"
         />
       </Modal>
+
+      <Modal
+        open={showEditInsurance}
+        onClose={() => { setShowEditInsurance(false); setInsuranceFile(null); }}
+        title="Insurance Details"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => { setShowEditInsurance(false); setInsuranceFile(null); }}>Cancel</Button>
+            <Button
+              loading={updateInsuranceMutation.isPending}
+              onClick={() => updateInsuranceMutation.mutate({
+                ...(insuranceFile ? { insurance_document: insuranceFile } : {}),
+                insurance_incorporation_date: insuranceIncorporationDate,
+                insurance_expiry_date: insuranceExpiryDate,
+              })}
+            >
+              Save
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Insurance Document</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setInsuranceFile(await fileToDataUrl(file));
+              }}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Incorporation Date"
+              type="date"
+              value={insuranceIncorporationDate}
+              onChange={(e) => setInsuranceIncorporationDate(e.target.value)}
+            />
+            <Input
+              label="Expiry Date"
+              type="date"
+              value={insuranceExpiryDate}
+              onChange={(e) => setInsuranceExpiryDate(e.target.value)}
+            />
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={showAddDocument}
+        onClose={() => { setShowAddDocument(false); setDocTitle(''); setDocImage(null); }}
+        title="Add Document"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => { setShowAddDocument(false); setDocTitle(''); setDocImage(null); }}>Cancel</Button>
+            <Button
+              loading={addDocumentMutation.isPending}
+              disabled={!docTitle || !docImage}
+              onClick={() => addDocumentMutation.mutate({ title: docTitle, image: docImage! })}
+            >
+              Add
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <Input label="Document Title" placeholder="e.g. Roadworthiness Certificate" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Image</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setDocImage(await fileToDataUrl(file));
+              }}
+            />
+          </div>
+        </div>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!deleteDocument}
+        onClose={() => setDeleteDocument(null)}
+        onConfirm={() => deleteDocumentMutation.mutate(deleteDocument!.id)}
+        loading={deleteDocumentMutation.isPending}
+        message={`Remove document "${deleteDocument?.title}"?`}
+      />
     </div>
   );
 }

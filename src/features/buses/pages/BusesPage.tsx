@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, MoreVertical, Eye, Wrench, Trash2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { busesApi } from '../api/busesApi';
+import { adminsApi } from '@/features/admins/api/adminsApi';
 import { Header } from '@/components/layout/Header';
 import { Table, type Column } from '@/components/ui/Table';
 import { Badge, statusBadge } from '@/components/ui/Badge';
@@ -15,6 +16,7 @@ import { Select } from '@/components/ui/Select';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { useToast } from '@/components/ui/Toast';
 import { formatDate, getErrorMessage, slugToLabel } from '@/lib/utils';
+import { busTripStatus } from '@/types';
 import type { Bus, CreateBusPayload } from '@/types';
 
 export function BusesPage() {
@@ -29,6 +31,11 @@ export function BusesPage() {
   const { data: buses = [], isLoading } = useQuery({
     queryKey: ['buses'],
     queryFn: busesApi.list,
+  });
+
+  const { data: marshals = [] } = useQuery({
+    queryKey: ['admins', 'marshals'],
+    queryFn: () => adminsApi.listMarshals(),
   });
 
   const createMutation = useMutation({
@@ -79,17 +86,30 @@ export function BusesPage() {
     { key: 'capacity', header: 'Capacity', cell: (r) => `${r.capacity} seats` },
     {
       key: 'status',
-      header: 'Status',
-      cell: (r) => (
-        <Badge variant={statusBadge(r.status)} dot>{slugToLabel(r.status)}</Badge>
-      ),
+      header: 'Trip Status',
+      cell: (r) => {
+        const status = busTripStatus(r);
+        return <Badge variant={statusBadge(status)} dot>{slugToLabel(status)}</Badge>;
+      },
     },
     {
       key: 'driver',
       header: 'Driver',
       cell: (r) => r.driver_id ? <Badge variant="info">Assigned</Badge> : <span className="text-gray-400">—</span>,
     },
-    { key: 'created', header: 'Added', cell: (r) => <span className="text-gray-500">{formatDate(r.created_at)}</span> },
+    {
+      key: 'marshal',
+      header: 'Bus Marshal',
+      cell: (r) => {
+        if (r.marshal_ids.length === 0) return <span className="text-gray-400">—</span>;
+        const names = r.marshal_ids.map((mid) => {
+          const m = marshals.find((x) => x.id === mid);
+          return m ? `${m.first_name} ${m.last_name}` : mid;
+        });
+        return names.join(', ');
+      },
+    },
+    { key: 'created', header: 'Date Added', cell: (r) => <span className="text-gray-500">{formatDate(r.created_at)}</span> },
     {
       key: 'actions',
       header: '',

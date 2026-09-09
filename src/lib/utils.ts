@@ -24,6 +24,18 @@ export function formatNumber(n: number): string {
   return new Intl.NumberFormat('en-NG').format(n);
 }
 
+// Reads a File into a base64 data URI — used for bus pictures/insurance/
+// document uploads, which this app has no object storage for and instead
+// stores directly as a data URI string.
+export function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 export function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }

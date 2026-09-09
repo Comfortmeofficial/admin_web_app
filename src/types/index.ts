@@ -52,9 +52,11 @@ export interface Marshal extends Admin {
   assigned_bus_ids: string[];
 }
 
-export type MarshalTripStatus = 'active' | 'inactive' | 'suspended';
+// Shared by marshals and buses (see busTripStatus below) — both derive the
+// same active/inactive/suspended split from a different underlying source.
+export type TripStatus = 'active' | 'inactive' | 'suspended';
 
-export function marshalTripStatus(m: Marshal): MarshalTripStatus {
+export function marshalTripStatus(m: Marshal): TripStatus {
   if (!m.is_active) return 'suspended';
   return m.current_ride_id ? 'active' : 'inactive';
 }
@@ -208,9 +210,32 @@ export interface Bus {
   status: BusStatus;
   driver_id?: string;
   marshal_ids: string[];
+  current_ride_id?: string | null;
+  picture?: string | null;
+  insurance_document?: string | null;
+  insurance_incorporation_date?: string | null;
+  insurance_expiry_date?: string | null;
   layout?: SeatLayout;
   created_at: string;
   updated_at: string;
+}
+
+export interface BusDocument {
+  id: string;
+  bus_id: string;
+  title: string;
+  image: string;
+  created_at: string;
+}
+
+// Trip status (active/inactive/suspended), same split as marshalTripStatus:
+// `status` (active/maintenance/retired) governs whether the bus can be used
+// at all — maintenance/retired both surface as "suspended" here — while
+// "active" vs "inactive" is derived from whether it currently has a ride
+// in progress.
+export function busTripStatus(b: Bus): TripStatus {
+  if (b.status !== 'active') return 'suspended';
+  return b.current_ride_id ? 'active' : 'inactive';
 }
 
 export interface CreateBusPayload {

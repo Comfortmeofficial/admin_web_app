@@ -241,7 +241,7 @@ export function busTripStatus(b: Bus): TripStatus {
 
 export interface CreateBusPayload {
   plate_number: string;
-  model: string;
+  model?: string;
   capacity?: number;
   rows?: number;
   cols?: number;

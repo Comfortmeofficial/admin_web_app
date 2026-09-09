@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { useToast } from '@/components/ui/Toast';
 import { formatDate, getErrorMessage, slugToLabel } from '@/lib/utils';
@@ -196,7 +195,6 @@ function BusForm({ open, onClose, onSubmit, loading, defaultValues }: BusFormPro
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateBusPayload>({
     defaultValues: {
       plate_number: defaultValues?.plate_number ?? '',
-      model: defaultValues?.model ?? '',
       capacity: defaultValues?.capacity ?? 40,
       bus_type: defaultValues?.bus_type ?? '',
     },
@@ -208,18 +206,8 @@ function BusForm({ open, onClose, onSubmit, loading, defaultValues }: BusFormPro
     >
       <div className="flex flex-col gap-4">
         <Input label="Plate Number" required placeholder="ABC-123-XY" {...register('plate_number', { required: 'Required' })} error={errors.plate_number?.message} />
-        <Input label="Bus Model" required placeholder="Toyota Coaster" {...register('model', { required: 'Required' })} error={errors.model?.message} />
         <Input label="Capacity" type="number" {...register('capacity', { valueAsNumber: true })} hint="Will be calculated from seat layout if provided" />
-        <Select
-          label="Bus Type"
-          options={[
-            { value: 'intercity', label: 'Intercity' },
-            { value: 'intrastate', label: 'Intrastate' },
-            { value: 'shuttle', label: 'Shuttle' },
-          ]}
-          placeholder="Select bus type"
-          {...register('bus_type')}
-        />
+        <Input label="Bus Type" placeholder="e.g. Intercity, Shuttle" {...register('bus_type')} />
       </div>
     </Modal>
   );

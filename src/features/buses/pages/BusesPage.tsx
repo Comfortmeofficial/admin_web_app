@@ -109,6 +109,11 @@ export function BusesPage() {
         return names.join(', ');
       },
     },
+    {
+      key: 'insurance_expiry',
+      header: 'Insurance Expiry',
+      cell: (r) => r.insurance_expiry_date ? formatDate(r.insurance_expiry_date) : <span className="text-gray-400">—</span>,
+    },
     { key: 'created', header: 'Date Added', cell: (r) => <span className="text-gray-500">{formatDate(r.created_at)}</span> },
     {
       key: 'actions',
@@ -189,7 +194,12 @@ interface BusFormProps {
 
 function BusForm({ open, onClose, onSubmit, loading, defaultValues }: BusFormProps) {
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateBusPayload>({
-    defaultValues: { plate_number: defaultValues?.plate_number ?? '', model: defaultValues?.model ?? '', capacity: defaultValues?.capacity ?? 40 },
+    defaultValues: {
+      plate_number: defaultValues?.plate_number ?? '',
+      model: defaultValues?.model ?? '',
+      capacity: defaultValues?.capacity ?? 40,
+      bus_type: defaultValues?.bus_type ?? '',
+    },
   });
   const submit = handleSubmit((data) => onSubmit(data));
   return (
@@ -200,6 +210,16 @@ function BusForm({ open, onClose, onSubmit, loading, defaultValues }: BusFormPro
         <Input label="Plate Number" required placeholder="ABC-123-XY" {...register('plate_number', { required: 'Required' })} error={errors.plate_number?.message} />
         <Input label="Bus Model" required placeholder="Toyota Coaster" {...register('model', { required: 'Required' })} error={errors.model?.message} />
         <Input label="Capacity" type="number" {...register('capacity', { valueAsNumber: true })} hint="Will be calculated from seat layout if provided" />
+        <Select
+          label="Bus Type"
+          options={[
+            { value: 'intercity', label: 'Intercity' },
+            { value: 'intrastate', label: 'Intrastate' },
+            { value: 'shuttle', label: 'Shuttle' },
+          ]}
+          placeholder="Select bus type"
+          {...register('bus_type')}
+        />
       </div>
     </Modal>
   );

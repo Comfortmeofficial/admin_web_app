@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, MoreVertical, Eye, Power, Download, Trash2 } from 'lucide-react';
+import { Plus, MoreVertical, Eye, Power, Download, Trash2, KeyRound, LogOut } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { adminsApi } from '@/features/admins/api/adminsApi';
 import { busesApi } from '@/features/buses/api/busesApi';
+import { useAuth } from '@/features/auth/context/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Table, type Column } from '@/components/ui/Table';
 import { Badge, statusBadge } from '@/components/ui/Badge';
@@ -30,11 +31,14 @@ export function MarshalsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
+  const { admin } = useAuth();
+  const isSuperAdmin = admin?.role === 'super_admin';
   const [search, setSearch] = useState('');
   const [statusTab, setStatusTab] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
   const [actionMenu, setActionMenu] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ marshal: Marshal; action: string } | null>(null);
+  const [tempPassword, setTempPassword] = useState<{ marshal: Marshal; password: string } | null>(null);
 
   const { data: marshals = [], isLoading } = useQuery({
     queryKey: ['admins', 'marshals'],
@@ -74,6 +78,18 @@ export function MarshalsPage() {
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
+  const resetPasswordMutation = useMutation({
+    mutationFn: (marshal: Marshal) => adminsApi.resetPassword(marshal.id).then((r) => ({ marshal, password: r.temporary_password })),
+    onSuccess: ({ marshal, password }) => { setTempPassword({ marshal, password }); setConfirm(null); },
+    onError: (e) => toast.error('Failed to reset password', getErrorMessage(e)),
+  });
+
+  const forceLogoutMutation = useMutation({
+    mutationFn: (id: string) => adminsApi.forceLogout(id),
+    onSuccess: () => { toast.success('Marshal logged out of all sessions'); setConfirm(null); },
+    onError: (e) => toast.error('Failed to force logout', getErrorMessage(e)),
+  });
+
   const filtered = marshals.filter((m) => {
     const matchesSearch = `${m.first_name} ${m.last_name} ${m.email}`
       .toLowerCase().includes(search.toLowerCase());
@@ -87,9 +103,12 @@ export function MarshalsPage() {
     if (action === 'suspend') suspendMutation.mutate(marshal.id);
     else if (action === 'reinstate') reinstateMutation.mutate(marshal.id);
     else if (action === 'delete') deleteMutation.mutate(marshal.id);
+    else if (action === 'reset_password') resetPasswordMutation.mutate(marshal);
+    else if (action === 'force_logout') forceLogoutMutation.mutate(marshal.id);
   };
 
-  const isPending = suspendMutation.isPending || reinstateMutation.isPending || deleteMutation.isPending;
+  const isPending = suspendMutation.isPending || reinstateMutation.isPending || deleteMutation.isPending
+    || resetPasswordMutation.isPending || forceLogoutMutation.isPending;
 
   const columns: Column<Marshal>[] = [
     {
@@ -148,6 +167,12 @@ export function MarshalsPage() {
               ) : (
                 <button onClick={() => { setConfirm({ marshal: row, action: 'reinstate' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-green-600 hover:bg-green-50 w-full"><Power className="w-3.5 h-3.5" /> Reinstate</button>
               )}
+              {isSuperAdmin && (
+                <>
+                  <button onClick={() => { setConfirm({ marshal: row, action: 'reset_password' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"><KeyRound className="w-3.5 h-3.5" /> Reset Password</button>
+                  <button onClick={() => { setConfirm({ marshal: row, action: 'force_logout' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"><LogOut className="w-3.5 h-3.5" /> Force Logout</button>
+                </>
+              )}
               <button onClick={() => { setConfirm({ marshal: row, action: 'delete' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-full"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
             </div>
           )}
@@ -202,9 +227,37 @@ export function MarshalsPage() {
         message={
           confirm?.action === 'delete'
             ? `Delete marshal "${confirm?.marshal.first_name} ${confirm?.marshal.last_name}"? This removes them from active use — for marshals who are no longer with the company.`
+            : confirm?.action === 'reset_password'
+            ? `Reset the password for "${confirm?.marshal.first_name} ${confirm?.marshal.last_name}"? A new temporary password will be generated — the old one stops working immediately.`
+            : confirm?.action === 'force_logout'
+            ? `Force logout "${confirm?.marshal.first_name} ${confirm?.marshal.last_name}"? Any session they're currently signed into stops working immediately.`
             : `Are you sure you want to ${confirm?.action} marshal "${confirm?.marshal.first_name} ${confirm?.marshal.last_name}"?`
         }
       />
+
+      <Modal
+        open={!!tempPassword}
+        onClose={() => setTempPassword(null)}
+        title="Temporary Password"
+        size="sm"
+        footer={<Button onClick={() => setTempPassword(null)}>Done</Button>}
+      >
+        <p className="text-sm text-gray-600 mb-3">
+          New temporary password for <strong>{tempPassword?.marshal.first_name} {tempPassword?.marshal.last_name}</strong> — copy it now, it won't be shown again.
+        </p>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono select-all">
+            {tempPassword?.password}
+          </code>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { if (tempPassword) navigator.clipboard.writeText(tempPassword.password); toast.success('Copied to clipboard'); }}
+          >
+            Copy
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

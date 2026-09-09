@@ -201,6 +201,7 @@ export function BusDetailPage() {
                 {[
                   ['Plate Number', bus.plate_number],
                   ['Model', bus.model],
+                  ['Bus Type', bus.bus_type ? slugToLabel(bus.bus_type) : '—'],
                   ['Capacity', `${bus.capacity} seats`],
                   ['Trip Status', <Badge key="s" variant={statusBadge(busTripStatus(bus))} dot>{slugToLabel(busTripStatus(bus))}</Badge>],
                   ['Added', formatDate(bus.created_at)],

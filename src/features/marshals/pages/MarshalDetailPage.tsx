@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Mail, Phone, MapPin, Car, Calendar, Trash2 } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MapPin, Car, Calendar, Trash2, KeyRound, LogOut } from 'lucide-react';
 import { adminsApi } from '@/features/admins/api/adminsApi';
 import { busesApi } from '@/features/buses/api/busesApi';
+import { useAuth } from '@/features/auth/context/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
 import { Badge, statusBadge } from '@/components/ui/Badge';
 import { Tabs } from '@/components/ui/Tabs';
 import { PageSpinner } from '@/components/ui/Spinner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { formatDate, formatDateTime, getErrorMessage, slugToLabel } from '@/lib/utils';
 import { Card } from '@/components/ui/Tabs';
@@ -29,9 +31,12 @@ export function MarshalDetailPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
+  const { admin } = useAuth();
+  const isSuperAdmin = admin?.role === 'super_admin';
   const [tab, setTab] = useState('overview');
   const [showEdit, setShowEdit] = useState(false);
   const [confirm, setConfirm] = useState<{ action: string } | null>(null);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   const { data: marshal, isLoading } = useQuery({
     queryKey: ['marshal', id],
@@ -74,17 +79,32 @@ export function MarshalDetailPage() {
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
+  const resetPasswordMutation = useMutation({
+    mutationFn: () => adminsApi.resetPassword(id!),
+    onSuccess: (r) => { setTempPassword(r.temporary_password); setConfirm(null); },
+    onError: (e) => toast.error('Failed to reset password', getErrorMessage(e)),
+  });
+
+  const forceLogoutMutation = useMutation({
+    mutationFn: () => adminsApi.forceLogout(id!),
+    onSuccess: () => { toast.success('Marshal logged out of all sessions'); setConfirm(null); },
+    onError: (e) => toast.error('Failed to force logout', getErrorMessage(e)),
+  });
+
   const handleAction = () => {
     if (!confirm) return;
     if (confirm.action === 'suspend') suspendMutation.mutate();
     else if (confirm.action === 'reinstate') reinstateMutation.mutate();
     else if (confirm.action === 'delete') deleteMutation.mutate();
+    else if (confirm.action === 'reset_password') resetPasswordMutation.mutate();
+    else if (confirm.action === 'force_logout') forceLogoutMutation.mutate();
   };
 
   if (isLoading) return <PageSpinner />;
   if (!marshal) return null;
 
-  const isPending = suspendMutation.isPending || reinstateMutation.isPending || deleteMutation.isPending;
+  const isPending = suspendMutation.isPending || reinstateMutation.isPending || deleteMutation.isPending
+    || resetPasswordMutation.isPending || forceLogoutMutation.isPending;
   const status = marshalTripStatus(marshal);
   const assignedPlates = marshal.assigned_bus_ids.map((busId) => buses.find((b) => b.id === busId)?.plate_number ?? busId);
 
@@ -115,6 +135,16 @@ export function MarshalDetailPage() {
                   <Button variant="danger" size="sm" onClick={() => setConfirm({ action: 'suspend' })}>Suspend</Button>
                 ) : (
                   <Button variant="primary" size="sm" onClick={() => setConfirm({ action: 'reinstate' })}>Reinstate</Button>
+                )}
+                {isSuperAdmin && (
+                  <>
+                    <Button variant="outline" size="sm" icon={<KeyRound className="w-4 h-4" />} onClick={() => setConfirm({ action: 'reset_password' })}>
+                      Reset Password
+                    </Button>
+                    <Button variant="outline" size="sm" icon={<LogOut className="w-4 h-4" />} onClick={() => setConfirm({ action: 'force_logout' })}>
+                      Force Logout
+                    </Button>
+                  </>
                 )}
                 <Button variant="danger" size="sm" icon={<Trash2 className="w-4 h-4" />} onClick={() => setConfirm({ action: 'delete' })}>
                   Delete
@@ -248,9 +278,37 @@ export function MarshalDetailPage() {
         message={
           confirm?.action === 'delete'
             ? `Delete marshal "${marshal.first_name} ${marshal.last_name}"? This removes them from active use — for marshals who are no longer with the company.`
+            : confirm?.action === 'reset_password'
+            ? `Reset the password for "${marshal.first_name} ${marshal.last_name}"? A new temporary password will be generated — the old one stops working immediately.`
+            : confirm?.action === 'force_logout'
+            ? `Force logout "${marshal.first_name} ${marshal.last_name}"? Any session they're currently signed into stops working immediately.`
             : `Confirm: ${confirm?.action} marshal "${marshal.first_name} ${marshal.last_name}"?`
         }
       />
+
+      <Modal
+        open={!!tempPassword}
+        onClose={() => setTempPassword(null)}
+        title="Temporary Password"
+        size="sm"
+        footer={<Button onClick={() => setTempPassword(null)}>Done</Button>}
+      >
+        <p className="text-sm text-gray-600 mb-3">
+          New temporary password for <strong>{marshal.first_name} {marshal.last_name}</strong> — copy it now, it won't be shown again.
+        </p>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono select-all">
+            {tempPassword}
+          </code>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { if (tempPassword) navigator.clipboard.writeText(tempPassword); toast.success('Copied to clipboard'); }}
+          >
+            Copy
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

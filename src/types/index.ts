@@ -209,6 +209,7 @@ export interface Bus {
   capacity: number;
   status: BusStatus;
   driver_id?: string;
+  bus_type?: string | null;
   marshal_ids: string[];
   current_ride_id?: string | null;
   picture?: string | null;
@@ -245,6 +246,7 @@ export interface CreateBusPayload {
   rows?: number;
   cols?: number;
   layout?: SeatLayout;
+  bus_type?: string;
 }
 
 // ─── Route ────────────────────────────────────────────────────────────────────

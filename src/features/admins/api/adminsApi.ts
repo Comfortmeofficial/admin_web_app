@@ -45,6 +45,13 @@ export const adminsApi = {
     return data;
   },
 
+  // Invalidates every token this admin currently holds — they're logged out
+  // of any active session on their very next request, not just prevented
+  // from logging in again.
+  forceLogout: async (id: string): Promise<void> => {
+    await adminClient.post(`/api/v1/admins/${id}/force-logout`);
+  },
+
   listMarshals: async () => {
     const { data } = await adminClient.get('/api/v1/admins/marshals');
     return data as Marshal[];

@@ -27,46 +27,84 @@ const CELL = 44;
 
 function buildBlockSeats(rows: number, cols: number): SeatDefinition[] {
   const seats: SeatDefinition[] = [];
-  let seatNum = 1;
   for (let r = 1; r <= rows; r++) {
     for (let c = 1; c <= cols; c++) {
-      seats.push({ row: r, col: c, seat_number: `${seatNum++}`, seat_type: 'standard', is_seat: true });
+      // Placeholder — renumberAllBlocks (run on every change via `commit`)
+      // overwrites this immediately, so it's never actually seen on screen.
+      seats.push({ row: r, col: c, seat_number: '', seat_type: 'standard', is_seat: true });
     }
   }
   return seats;
 }
 
-function seatNumberFor(seatType: SeatType, n: number): string {
-  if (seatType === 'walkway' || seatType === 'empty') return '';
-  if (seatType === 'driver') return 'D';
-  return String(n);
+function isRealSeat(seatType: SeatType): boolean {
+  return seatType === 'standard' || seatType === 'premium' || seatType === 'disabled';
 }
 
-function renumberBlockSeats(seats: SeatDefinition[]): SeatDefinition[] {
-  let n = 1;
-  return [...seats]
-    .sort((a, b) => a.row - b.row || a.col - b.col)
-    .map((s) => ({ ...s, seat_number: seatNumberFor(s.seat_type as SeatType, n++) }));
+// 1 -> A, 2 -> B, ..., 26 -> Z, 27 -> AA, 28 -> AB, ... — base-26 so a bus
+// with more than 26 seat rows still gets a distinct letter per row instead
+// of running out.
+function rowLetterFor(n: number): string {
+  let s = '';
+  let num = n;
+  while (num > 0) {
+    const rem = (num - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    num = Math.floor((num - 1) / 26);
+  }
+  return s;
 }
 
-// Each block numbers its own seats starting at 1, so with more than one
-// block the same seat_number ends up on several physically different
-// seats once flattened — confusing to riders and unsafe for anything that
-// looks a seat up by number. Renumbers every block together in reading
-// order (top-to-bottom, left-to-right across the whole canvas) so numbers
-// are unique across the entire layout. Runs automatically before every
-// save; also exposed as a "Renumber All" button so admins can preview it.
+// Alphanumeric, row-based labels (A1, A2, A3 / B1, B2, B3, ...) computed
+// fresh from every seat's *current* type and position across the whole
+// canvas — not stored/incremented state — so it's inherently "dynamic":
+// painting a walkway into a standard seat (or moving/resizing a section)
+// changes what gets counted and re-shuffles every label after it, with no
+// separate renumber step required. Letters are assigned per distinct global
+// row that contains at least one real (standard/premium/disabled) seat, in
+// top-to-bottom order; walkway/empty rows don't consume a letter. Within a
+// lettered row, real seats are numbered left-to-right in reading order.
+// Runs after every edit (see `commit` in SeatLayoutDesigner) and once more
+// at save time, so there's never a stale label to look at.
 function renumberAllBlocks(blocks: SeatBlock[]): SeatBlock[] {
   const ordered = [...blocks].sort((a, b) => a.y - b.y || a.x - b.x);
-  let n = 1;
-  const numbered = new Map<string, SeatDefinition[]>();
+
+  interface Positioned { blockId: string; globalRow: number; globalCol: number; seat: SeatDefinition }
+  const positioned: Positioned[] = [];
   for (const b of ordered) {
-    const seats = [...b.seats]
-      .sort((a, c) => a.row - c.row || a.col - c.col)
-      .map((s) => ({ ...s, seat_number: seatNumberFor(s.seat_type as SeatType, n++) }));
-    numbered.set(b.id, seats);
+    for (const s of b.seats) {
+      positioned.push({ blockId: b.id, globalRow: b.y - 1 + s.row, globalCol: b.x - 1 + s.col, seat: s });
+    }
   }
-  return blocks.map((b) => ({ ...b, seats: numbered.get(b.id) ?? b.seats }));
+
+  const realRows = Array.from(
+    new Set(positioned.filter((p) => isRealSeat(p.seat.seat_type as SeatType)).map((p) => p.globalRow)),
+  ).sort((a, b) => a - b);
+  const rowLetter = new Map<number, string>(realRows.map((row, i) => [row, rowLetterFor(i + 1)]));
+
+  const seatIndexInRow = new Map<number, number>();
+  const labelFor = new Map<Positioned, string>();
+  for (const p of [...positioned].sort((a, b) => a.globalRow - b.globalRow || a.globalCol - b.globalCol)) {
+    const type = p.seat.seat_type as SeatType;
+    if (type === 'driver') {
+      labelFor.set(p, 'D');
+    } else if (!isRealSeat(type)) {
+      labelFor.set(p, '');
+    } else {
+      const letter = rowLetter.get(p.globalRow)!;
+      const idx = (seatIndexInRow.get(p.globalRow) ?? 0) + 1;
+      seatIndexInRow.set(p.globalRow, idx);
+      labelFor.set(p, `${letter}${idx}`);
+    }
+  }
+
+  const byBlock = new Map<string, SeatDefinition[]>();
+  for (const p of positioned) {
+    const list = byBlock.get(p.blockId) ?? [];
+    list.push({ ...p.seat, seat_number: labelFor.get(p) ?? '' });
+    byBlock.set(p.blockId, list);
+  }
+  return blocks.map((b) => ({ ...b, seats: byBlock.get(b.id) ?? b.seats }));
 }
 
 let blockCounter = 0;
@@ -107,7 +145,6 @@ function BlockEditor({
   onPaint,
   onResize,
   onRemove,
-  onRenumber,
   onFocus,
 }: {
   block: SeatBlock;
@@ -117,7 +154,6 @@ function BlockEditor({
   onPaint: (id: string, row: number, col: number) => void;
   onResize: (id: string, rows: number, cols: number) => void;
   onRemove: (id: string) => void;
-  onRenumber: (id: string) => void;
   onFocus: (id: string) => void;
 }) {
   const [dragging, setDragging] = useState(false);
@@ -162,9 +198,6 @@ function BlockEditor({
       >
         <span className="text-xs font-medium text-gray-500 truncate">{block.label ?? 'Section'}</span>
         <div className="flex items-center gap-2 shrink-0">
-          <button type="button" onClick={() => onRenumber(block.id)} title="Renumber seats" className="text-gray-400 hover:text-gray-700 text-xs px-1">
-            #
-          </button>
           <button type="button" onClick={() => onRemove(block.id)} title="Remove section" className="text-gray-400 hover:text-red-600 text-xs px-1">
             ✕
           </button>
@@ -230,8 +263,13 @@ export function SeatLayoutDesigner({ blocks, onChange }: SeatLayoutDesignerProps
   const [activeTool, setActiveTool] = useState<SeatType>('standard');
   const [frontId, setFrontId] = useState<string | null>(null);
 
+  // Every mutation goes through here so labels never go stale — see
+  // renumberAllBlocks's own comment for why this makes them "dynamic"
+  // rather than needing an explicit renumber step.
+  const commit = (next: SeatBlock[]) => onChange(renumberAllBlocks(next));
+
   const updateBlock = (id: string, updater: (b: SeatBlock) => SeatBlock) => {
-    onChange(blocks.map((b) => (b.id === id ? updater(b) : b)));
+    commit(blocks.map((b) => (b.id === id ? updater(b) : b)));
   };
 
   const handleMove = (id: string, x: number, y: number) => updateBlock(id, (b) => ({ ...b, x, y }));
@@ -252,16 +290,12 @@ export function SeatLayoutDesigner({ blocks, onChange }: SeatLayoutDesignerProps
       return { ...b, rows, cols, seats };
     });
 
-  const handleRemove = (id: string) => onChange(blocks.filter((b) => b.id !== id));
-
-  const handleRenumber = (id: string) => updateBlock(id, (b) => ({ ...b, seats: renumberBlockSeats(b.seats) }));
+  const handleRemove = (id: string) => commit(blocks.filter((b) => b.id !== id));
 
   const handleAddBlock = () => {
     const nextX = blocks.length > 0 ? Math.max(...blocks.map((b) => b.x + b.cols)) + 1 : 1;
-    onChange([...blocks, newBlock(nextX, 1)]);
+    commit([...blocks, newBlock(nextX, 1)]);
   };
-
-  const handleRenumberAll = () => onChange(renumberAllBlocks(blocks));
 
   const canvasWidth = Math.max(420, ...blocks.map((b) => (b.x - 1 + b.cols) * CELL + 60), 0);
   const canvasHeight = Math.max(320, ...blocks.map((b) => (b.y - 1 + b.rows) * CELL + 90), 0);
@@ -289,14 +323,14 @@ export function SeatLayoutDesigner({ blocks, onChange }: SeatLayoutDesignerProps
           ))}
         </div>
         <Button variant="outline" size="sm" onClick={handleAddBlock}>+ Add Section</Button>
-        <Button variant="outline" size="sm" onClick={handleRenumberAll}>Renumber All</Button>
       </div>
 
       <p className="text-xs text-gray-500">
         Drag a section by its header to position it on the canvas — arrange sections to match the bus's real
         layout (e.g. leave a gap for the aisle or door), then paint seat types inside each one. If two sections
-        overlap, click one to bring it to the front. Seat numbers are made unique across all sections
-        automatically when you save (or click "Renumber All" to preview it).
+        overlap, click one to bring it to the front. Seat labels (A1, A2, B1, B2, …) are assigned by row and
+        recompute live as you paint, move, or resize — converting a walkway into a seat re-numbers everything
+        after it automatically.
       </p>
 
       <div className="relative overflow-auto border border-gray-200 rounded-lg bg-gray-50" style={{ minHeight: 320 }}>
@@ -311,7 +345,6 @@ export function SeatLayoutDesigner({ blocks, onChange }: SeatLayoutDesignerProps
               onPaint={handlePaint}
               onResize={handleResize}
               onRemove={handleRemove}
-              onRenumber={handleRenumber}
               onFocus={setFrontId}
             />
           ))}

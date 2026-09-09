@@ -374,7 +374,12 @@ interface SeatLayoutConfigProps {
 
 export function SeatLayoutConfig({ onSave, initialLayout, loading }: SeatLayoutConfigProps) {
   const hasExisting = !!initialLayout && initialLayout.seats.length > 0;
-  const [blocks, setBlocks] = useState<SeatBlock[]>(() => (initialLayout ? legacyLayoutToBlocks(initialLayout) : []));
+  // Relabel immediately on load, not just on the next edit — otherwise a
+  // bus saved before this alphanumeric scheme existed keeps showing its old
+  // plain numbers until an admin happens to paint/move/resize something.
+  const [blocks, setBlocks] = useState<SeatBlock[]>(() =>
+    initialLayout ? renumberAllBlocks(legacyLayoutToBlocks(initialLayout)) : [],
+  );
   const [started, setStarted] = useState(hasExisting);
 
   const start = () => {

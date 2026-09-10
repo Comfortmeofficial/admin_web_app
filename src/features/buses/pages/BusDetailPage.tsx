@@ -37,6 +37,7 @@ export function BusDetailPage() {
   const [selectedDriver, setSelectedDriver] = useState('');
   const [showAssignMarshal, setShowAssignMarshal] = useState(false);
   const [selectedMarshal, setSelectedMarshal] = useState('');
+  const [reassignMarshalId, setReassignMarshalId] = useState<string | null>(null);
   const [showEditInsurance, setShowEditInsurance] = useState(false);
   const [insuranceIncorporationDate, setInsuranceIncorporationDate] = useState('');
   const [insuranceExpiryDate, setInsuranceExpiryDate] = useState('');
@@ -71,6 +72,12 @@ export function BusDetailPage() {
     queryFn: () => adminsApi.listMarshals(),
   });
 
+  const { data: assignedDriver, isLoading: assignedDriverLoading } = useQuery({
+    queryKey: ['bus-driver', bus?.driver_id],
+    queryFn: () => driversApi.get(bus!.driver_id!),
+    enabled: !!bus?.driver_id,
+  });
+
   const assignDriverMutation = useMutation({
     mutationFn: (driverId: string) => busesApi.assignDriver(id!, driverId),
     onSuccess: () => {
@@ -100,6 +107,23 @@ export function BusDetailPage() {
       setSelectedMarshal('');
     },
     onError: (e) => toast.error('Failed to assign marshal', getErrorMessage(e)),
+  });
+
+  // There's no single "swap" endpoint on the backend — a reassignment is an
+  // unassign of the old marshal followed by an assign of the new one.
+  const reassignMarshalMutation = useMutation({
+    mutationFn: async ({ oldMarshalId, newMarshalId }: { oldMarshalId: string; newMarshalId: string }) => {
+      await busesApi.unassignMarshal(id!, oldMarshalId);
+      return busesApi.assignMarshal(id!, newMarshalId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bus', id] });
+      toast.success('Marshal reassigned');
+      setShowAssignMarshal(false);
+      setSelectedMarshal('');
+      setReassignMarshalId(null);
+    },
+    onError: (e) => toast.error('Failed to reassign marshal', getErrorMessage(e)),
   });
 
   const unassignMarshalMutation = useMutation({
@@ -277,8 +301,16 @@ export function BusDetailPage() {
                 <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
                   <User className="w-5 h-5 text-blue-600" />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">Driver assigned</p>
-                    <p className="text-xs text-gray-500">{bus.driver_id}</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {assignedDriverLoading
+                        ? 'Loading…'
+                        : assignedDriver
+                          ? `${assignedDriver.first_name} ${assignedDriver.last_name}`
+                          : 'Driver assigned'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {assignedDriver ? `${assignedDriver.phone} · ${assignedDriver.email}` : bus.driver_id}
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -303,13 +335,23 @@ export function BusDetailPage() {
                             <p className="text-xs text-gray-500">{marshal?.email ?? marshalId}</p>
                           </div>
                         </div>
-                        <button
-                          onClick={() => unassignMarshalMutation.mutate(marshalId)}
-                          disabled={unassignMarshalMutation.isPending}
-                          className="p-1.5 rounded-lg hover:bg-blue-100 text-gray-400"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => { setReassignMarshalId(marshalId); setShowAssignMarshal(true); }}
+                          >
+                            Reassign
+                          </Button>
+                          <button
+                            onClick={() => unassignMarshalMutation.mutate(marshalId)}
+                            disabled={unassignMarshalMutation.isPending}
+                            title="Remove marshal"
+                            className="p-1.5 rounded-lg hover:bg-blue-100 text-gray-400"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -461,13 +503,21 @@ export function BusDetailPage() {
 
       <Modal
         open={showAssignMarshal}
-        onClose={() => { setShowAssignMarshal(false); setSelectedMarshal(''); }}
-        title="Assign Marshal"
+        onClose={() => { setShowAssignMarshal(false); setSelectedMarshal(''); setReassignMarshalId(null); }}
+        title={reassignMarshalId ? 'Reassign Marshal' : 'Assign Marshal'}
         size="sm"
         footer={
           <>
-            <Button variant="outline" onClick={() => { setShowAssignMarshal(false); setSelectedMarshal(''); }}>Cancel</Button>
-            <Button onClick={() => assignMarshalMutation.mutate(selectedMarshal)} loading={assignMarshalMutation.isPending} disabled={!selectedMarshal}>Assign</Button>
+            <Button variant="outline" onClick={() => { setShowAssignMarshal(false); setSelectedMarshal(''); setReassignMarshalId(null); }}>Cancel</Button>
+            <Button
+              onClick={() => reassignMarshalId
+                ? reassignMarshalMutation.mutate({ oldMarshalId: reassignMarshalId, newMarshalId: selectedMarshal })
+                : assignMarshalMutation.mutate(selectedMarshal)}
+              loading={assignMarshalMutation.isPending || reassignMarshalMutation.isPending}
+              disabled={!selectedMarshal}
+            >
+              {reassignMarshalId ? 'Reassign' : 'Assign'}
+            </Button>
           </>
         }
       >

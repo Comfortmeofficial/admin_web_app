@@ -82,6 +82,10 @@ export function BusDetailPage() {
     mutationFn: (driverId: string) => busesApi.assignDriver(id!, driverId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bus', id] });
+      // The available-drivers pool has a 30s staleTime (see App.tsx) and is
+      // never refetched on its own — without this, a driver we just assigned
+      // keeps showing up as "available" on other buses until that timer lapses.
+      qc.invalidateQueries({ queryKey: ['drivers-available'] });
       toast.success('Driver assigned');
       setShowAssignDriver(false);
       setSelectedDriver('');
@@ -93,6 +97,7 @@ export function BusDetailPage() {
     mutationFn: () => busesApi.unassignDriver(id!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bus', id] });
+      qc.invalidateQueries({ queryKey: ['drivers-available'] });
       toast.success('Driver removed');
     },
     onError: (e) => toast.error('Failed to remove driver', getErrorMessage(e)),
@@ -102,6 +107,9 @@ export function BusDetailPage() {
     mutationFn: (marshalId: string) => busesApi.assignMarshal(id!, marshalId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bus', id] });
+      // Same staleness issue as drivers-available: the roster's assigned_bus_ids
+      // won't reflect this assignment until it's invalidated.
+      qc.invalidateQueries({ queryKey: ['admins-marshals'] });
       toast.success('Marshal assigned');
       setShowAssignMarshal(false);
       setSelectedMarshal('');
@@ -118,6 +126,7 @@ export function BusDetailPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bus', id] });
+      qc.invalidateQueries({ queryKey: ['admins-marshals'] });
       toast.success('Marshal reassigned');
       setShowAssignMarshal(false);
       setSelectedMarshal('');
@@ -130,6 +139,7 @@ export function BusDetailPage() {
     mutationFn: (marshalId: string) => busesApi.unassignMarshal(id!, marshalId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bus', id] });
+      qc.invalidateQueries({ queryKey: ['admins-marshals'] });
       toast.success('Marshal removed');
     },
     onError: (e) => toast.error('Failed to remove marshal', getErrorMessage(e)),
@@ -526,7 +536,9 @@ export function BusDetailPage() {
           value={selectedMarshal}
           onChange={(e) => setSelectedMarshal(e.target.value)}
           options={marshals
-            .filter((m) => m.is_active && !bus.marshal_ids.includes(m.id))
+            // A marshal covers one bus at a time: exclude anyone already on
+            // any bus, not just this one (assigned_bus_ids, not marshal_ids).
+            .filter((m) => m.is_active && m.assigned_bus_ids.length === 0)
             .map((m) => ({ value: m.id, label: `${m.first_name} ${m.last_name} — ${m.email}` }))}
           placeholder="Choose a marshal"
         />

@@ -162,7 +162,7 @@ export function ReferralsPage() {
             <MoreVertical className="w-4 h-4" />
           </button>
           {actionMenu === row.id && (
-            <div className="absolute right-0 top-8 z-10 bg-white rounded-lg shadow-lg border border-gray-200 min-w-[160px] py-1">
+            <div className="fixed right-3  z-50 bg-white rounded-lg shadow-lg border border-gray-200 min-w-[160px] py-1">
               {row.is_active && (
                 <button onClick={() => { setDeleteCode(row); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-full"><Power className="w-3.5 h-3.5" /> Deactivate</button>
               )}

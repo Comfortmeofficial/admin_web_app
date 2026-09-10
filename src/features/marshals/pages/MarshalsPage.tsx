@@ -160,7 +160,7 @@ export function MarshalsPage() {
             <MoreVertical className="w-4 h-4" />
           </button>
           {actionMenu === row.id && (
-            <div className="absolute right-0 top-8 z-10 bg-white rounded-lg shadow-lg border border-gray-200 min-w-[168px] py-1">
+            <div className="fixed right-3  z-50 bg-white rounded-lg shadow-lg border border-gray-200 min-w-[168px] py-1">
               <button onClick={() => { navigate(`/marshals/${row.id}`); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"><Eye className="w-3.5 h-3.5" /> View Profile</button>
               {row.is_active ? (
                 <button onClick={() => { setConfirm({ marshal: row, action: 'suspend' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 w-full"><Power className="w-3.5 h-3.5" /> Suspend</button>
@@ -222,6 +222,7 @@ export function MarshalsPage() {
         onClose={() => setConfirm(null)}
         onConfirm={handleAction}
         loading={isPending}
+
         confirmVariant={confirm?.action === 'reinstate' ? 'primary' : 'danger'}
         confirmLabel={confirm?.action ? slugToLabel(confirm.action) : 'Confirm'}
         message={

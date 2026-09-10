@@ -373,7 +373,7 @@ interface SeatLayoutConfigProps {
 }
 
 export function SeatLayoutConfig({ onSave, initialLayout, loading }: SeatLayoutConfigProps) {
-  const hasExisting = !!initialLayout && initialLayout.seats.length > 0;
+  const hasExisting = !!initialLayout?.seats?.length;
   // Relabel immediately on load, not just on the next edit — otherwise a
   // bus saved before this alphanumeric scheme existed keeps showing its old
   // plain numbers until an admin happens to paint/move/resize something.

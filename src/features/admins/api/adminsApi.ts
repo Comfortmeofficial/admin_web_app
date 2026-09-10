@@ -57,6 +57,15 @@ export const adminsApi = {
     return data as Marshal[];
   },
 
+  // Active marshals not currently on any bus — what the Bus Detail
+  // Assign/Reassign Marshal picker needs. listMarshals() above stays the
+  // full roster, still needed for the management page and for resolving
+  // already-assigned marshals' names on that same Bus Detail page.
+  listUnassignedMarshals: async () => {
+    const { data } = await adminClient.get('/api/v1/admins/marshals/unassigned');
+    return data as Marshal[];
+  },
+
   getMarshal: async (id: string) => {
     const { data } = await adminClient.get(`/api/v1/admins/marshals/${id}`);
     return data as Marshal;

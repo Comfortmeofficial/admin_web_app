@@ -62,14 +62,23 @@ export function BusDetailPage() {
   });
 
   const { data: availableDrivers = [] } = useQuery({
-    queryKey: ['drivers-available'],
-    queryFn: () => driversApi.listAvailable(),
+    queryKey: ['drivers-unassigned'],
+    queryFn: () => driversApi.listUnassigned(),
     enabled: showAssignDriver,
   });
 
   const { data: marshals = [] } = useQuery({
     queryKey: ['admins-marshals'],
     queryFn: () => adminsApi.listMarshals(),
+  });
+
+  // Separate from the full roster above — this is scoped to marshals eligible
+  // for a new assignment, resolved server-side (assigned_bus_ids there can't
+  // be trusted client-side the way marshal_ids on *this* bus can).
+  const { data: unassignedMarshals = [] } = useQuery({
+    queryKey: ['marshals-unassigned'],
+    queryFn: () => adminsApi.listUnassignedMarshals(),
+    enabled: showAssignMarshal,
   });
 
   const { data: assignedDriver, isLoading: assignedDriverLoading } = useQuery({
@@ -82,10 +91,10 @@ export function BusDetailPage() {
     mutationFn: (driverId: string) => busesApi.assignDriver(id!, driverId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bus', id] });
-      // The available-drivers pool has a 30s staleTime (see App.tsx) and is
+      // The unassigned-drivers pool has a 30s staleTime (see App.tsx) and is
       // never refetched on its own — without this, a driver we just assigned
-      // keeps showing up as "available" on other buses until that timer lapses.
-      qc.invalidateQueries({ queryKey: ['drivers-available'] });
+      // keeps showing up as unassigned on other buses until that timer lapses.
+      qc.invalidateQueries({ queryKey: ['drivers-unassigned'] });
       toast.success('Driver assigned');
       setShowAssignDriver(false);
       setSelectedDriver('');
@@ -97,7 +106,7 @@ export function BusDetailPage() {
     mutationFn: () => busesApi.unassignDriver(id!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bus', id] });
-      qc.invalidateQueries({ queryKey: ['drivers-available'] });
+      qc.invalidateQueries({ queryKey: ['drivers-unassigned'] });
       toast.success('Driver removed');
     },
     onError: (e) => toast.error('Failed to remove driver', getErrorMessage(e)),
@@ -107,9 +116,10 @@ export function BusDetailPage() {
     mutationFn: (marshalId: string) => busesApi.assignMarshal(id!, marshalId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bus', id] });
-      // Same staleness issue as drivers-available: the roster's assigned_bus_ids
-      // won't reflect this assignment until it's invalidated.
+      // Same staleness issue as drivers-unassigned: neither cache reflects
+      // this assignment until invalidated.
       qc.invalidateQueries({ queryKey: ['admins-marshals'] });
+      qc.invalidateQueries({ queryKey: ['marshals-unassigned'] });
       toast.success('Marshal assigned');
       setShowAssignMarshal(false);
       setSelectedMarshal('');
@@ -127,6 +137,7 @@ export function BusDetailPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bus', id] });
       qc.invalidateQueries({ queryKey: ['admins-marshals'] });
+      qc.invalidateQueries({ queryKey: ['marshals-unassigned'] });
       toast.success('Marshal reassigned');
       setShowAssignMarshal(false);
       setSelectedMarshal('');
@@ -140,6 +151,7 @@ export function BusDetailPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bus', id] });
       qc.invalidateQueries({ queryKey: ['admins-marshals'] });
+      qc.invalidateQueries({ queryKey: ['marshals-unassigned'] });
       toast.success('Marshal removed');
     },
     onError: (e) => toast.error('Failed to remove marshal', getErrorMessage(e)),
@@ -273,7 +285,7 @@ export function BusDetailPage() {
             </Card>
             <Card>
               <h3 className="font-semibold text-gray-900 mb-4">Layout Summary</h3>
-              {bus.layout ? (
+              {bus.layout?.seats?.length ? (
                 <dl className="space-y-3">
                   {[
                     ['Rows', bus.layout.rows],
@@ -535,11 +547,7 @@ export function BusDetailPage() {
           label="Select Marshal"
           value={selectedMarshal}
           onChange={(e) => setSelectedMarshal(e.target.value)}
-          options={marshals
-            // A marshal covers one bus at a time: exclude anyone already on
-            // any bus, not just this one (assigned_bus_ids, not marshal_ids).
-            .filter((m) => m.is_active && m.assigned_bus_ids.length === 0)
-            .map((m) => ({ value: m.id, label: `${m.first_name} ${m.last_name} — ${m.email}` }))}
+          options={unassignedMarshals.map((m) => ({ value: m.id, label: `${m.first_name} ${m.last_name} — ${m.email}` }))}
           placeholder="Choose a marshal"
         />
       </Modal>

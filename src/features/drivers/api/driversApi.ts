@@ -12,6 +12,13 @@ export const driversApi = {
     return data as Driver[];
   },
 
+  // Not currently on any bus — distinct from listAvailable, which only
+  // excludes suspended drivers. This is what the Assign Driver picker needs.
+  listUnassigned: async () => {
+    const { data } = await driverClient.get('/api/v1/drivers/unassigned');
+    return data as Driver[];
+  },
+
   get: async (id: string) => {
     const { data } = await driverClient.get(`/api/v1/drivers/${id}`);
     return data as Driver;

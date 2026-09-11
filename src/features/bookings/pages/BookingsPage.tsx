@@ -22,7 +22,7 @@ const STATUS_TABS = [
   { key: 'confirmed', label: 'Confirmed' },
   { key: 'cancelled', label: 'Cancelled' },
   { key: 'completed', label: 'Completed' },
-  { key: 'refunded', label: 'Refunded' },
+  // { key: 'refunded', label: 'Refunded' },
 ];
 
 export function BookingsPage() {

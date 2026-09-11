@@ -15,13 +15,18 @@ import { Download, TrendingUp, ArrowDownCircle, ArrowUpCircle } from 'lucide-rea
 import type { WalletTransaction } from '@/types';
 
 // There's no dedicated gateway-payments endpoint yet, so this page is really
-// the wallet ledger — deposit/refund money in, withdrawal/trip_fare money
-// out. It has no `status` field at all, so a Successful/Pending/Failed
-// filter can never be more than dead buttons; this filters by direction
-// instead, which the data can actually answer. Mirrors the same split the
-// customer app's own wallet screen already uses (isCredit in wallet/index.tsx).
+// the wallet ledger. It has no `status` field at all, so a
+// Successful/Pending/Failed filter can never be more than dead buttons; this
+// filters by direction instead, which the data can actually answer.
+//
+// "Credit"/"Money In" here means platform cash flow, not the customer
+// wallet's own balance direction — deposit and trip_fare both represent
+// money the platform received (a top-up, a fare payment), so both are green;
+// refund and withdrawal are money going back out, so both are red. That's
+// the opposite of a refund's effect on the customer's own wallet balance
+// (which increases), but this page is the admin's revenue view, not theirs.
 function isCredit(type: string) {
-  return type === 'deposit' || type === 'refund';
+  return type === 'deposit' || type === 'trip_fare';
 }
 
 const DIRECTION_TABS = [
@@ -76,7 +81,7 @@ export function PaymentsPage() {
     },
     {
       key: 'type', header: 'Type',
-      cell: (r) => <Badge variant={isCredit(r.type) ? 'success' : 'gray'}>{slugToLabel(r.type)}</Badge>,
+      cell: (r) => <Badge variant={isCredit(r.type) ? 'success' : 'danger'}>{slugToLabel(r.type)}</Badge>,
     },
     { key: 'date', header: 'Date', cell: (r) => formatDateTime(r.created_at) },
   ];

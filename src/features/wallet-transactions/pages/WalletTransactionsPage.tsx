@@ -15,12 +15,13 @@ import { Download, TrendingUp, ArrowDownCircle, ArrowUpCircle } from 'lucide-rea
 import type { WalletTransaction } from '@/types';
 
 // This is every wallet's own internal ledger — deposits, trip-fare
-// deductions, referral credits, refunds credited back to a wallet. Distinct
-// from the Payments page (features/payments), which tracks the Paystack/
-// refund ledger specifically: money that actually moved through Paystack, or
-// a refund regardless of what funded the original payment. Paying a booking
-// *from* an already-funded wallet shows up here, not there — no new money
-// enters or leaves the system at that point, it's purely internal movement.
+// deductions, referral credits, and refunds credited back to a wallet.
+// Refunds live here *only* — a refund never reverses anything through
+// Paystack, it just credits a wallet, so it has no row on the Payments page
+// (features/payments) even when it's refunding a Paystack-sourced payment.
+// Paying a booking *from* an already-funded wallet also shows up here, not
+// there — no new money enters or leaves the system at that point, it's
+// purely internal movement.
 //
 // "Credit"/"Money In" here means platform cash flow, not the customer
 // wallet's own balance direction — deposit and trip_fare both represent

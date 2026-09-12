@@ -15,11 +15,13 @@ import { PAGE_SIZE } from '@/lib/constants';
 import { Download, CheckCircle2, Clock, XCircle, Wallet } from 'lucide-react';
 import type { Payment, PaymentMethod, PaymentPurpose, PaymentStatus } from '@/types';
 
-// The Paystack/refund ledger — distinct from the Wallet Transactions page
+// The Paystack ledger — distinct from the Wallet Transactions page
 // (features/wallet-transactions), which is each wallet's own internal
-// movement. A row here is either money that actually went through Paystack,
-// or a refund; paying a booking/package/rental *from* an already-funded
-// wallet has no row here — see the backend's payments/types.ts for why.
+// movement. A row here is money that actually went through Paystack; paying
+// a booking/package/rental *from* an already-funded wallet has no row here,
+// and neither does a refund — refunds only ever credit a wallet, they never
+// reverse anything through Paystack, so they live in Wallet Transactions
+// only. See types/index.ts for the full reasoning.
 const STATUS_VARIANTS: Record<PaymentStatus, BadgeVariant> = {
   pending: 'warning',
   successful: 'success',
@@ -31,14 +33,14 @@ const PURPOSE_OPTIONS: { value: PaymentPurpose; label: string }[] = [
   { value: 'booking_payment', label: 'Booking Payment' },
   { value: 'package_payment', label: 'Package Payment' },
   { value: 'rental_payment', label: 'Rental Payment' },
-  { value: 'refund', label: 'Refund' },
   { value: 'other', label: 'Other' },
 ];
 
+// No 'wallet' option — a Payment's method is only ever debit_card/
+// bank_transfer (see the file-level comment above).
 const METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'debit_card', label: 'Debit Card' },
   { value: 'bank_transfer', label: 'Bank Transfer' },
-  { value: 'wallet', label: 'Wallet' },
 ];
 
 const STATUS_OPTIONS: { value: PaymentStatus; label: string }[] = [
@@ -101,7 +103,7 @@ export function PaymentsPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Payments" subtitle="Money that moved through Paystack, plus every refund — with its live outcome" />
+      <Header title="Payments" subtitle="Money that moved through Paystack, with its live outcome" />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {/* Stats */}

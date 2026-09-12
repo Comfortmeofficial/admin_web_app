@@ -438,18 +438,20 @@ export interface WalletTransaction {
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
 //
-// The Paystack/refund ledger — distinct from WalletTransaction above, which
-// is the wallet's own internal movement (deposits, trip-fare deductions,
-// referral credits). A payment here is either money that actually went
-// through Paystack, or a refund, regardless of what funded the original
-// payment being refunded. Paying a booking/package/rental *from* an
-// already-funded wallet has no row here — see payments/types.ts on the
-// backend for the full reasoning.
+// The Paystack ledger — distinct from WalletTransaction above, which is the
+// wallet's own internal movement (deposits, trip-fare deductions, referral
+// credits, refunds). A payment here is money that actually went through
+// Paystack; paying a booking/package/rental *from* an already-funded wallet
+// has no row here, and neither does a refund — a refund only ever credits a
+// wallet, it never reverses anything through Paystack, so it stays
+// wallet-ledger-only. See payments/types.ts on the backend for the full
+// reasoning (that table briefly tracked refunds too; reverted).
 
 export type PaymentStatus = 'pending' | 'successful' | 'failed';
-export type PaymentPurpose = 'wallet_funding' | 'booking_payment' | 'package_payment' | 'rental_payment' | 'refund' | 'other';
-// PaymentMethod itself is declared above (Booking section) — same three
-// values, reused here rather than redeclared.
+export type PaymentPurpose = 'wallet_funding' | 'booking_payment' | 'package_payment' | 'rental_payment' | 'other';
+// PaymentMethod itself is declared above (Booking section) — reused here
+// rather than redeclared, even though a Payment's method is really only
+// ever debit_card/bank_transfer (never 'wallet' — see the reasoning above).
 
 export interface Payment {
   id: string;

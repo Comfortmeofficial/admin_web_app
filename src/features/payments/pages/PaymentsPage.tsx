@@ -10,7 +10,7 @@ import { Select } from '@/components/ui/Select';
 import { Input } from '@/components/ui/Input';
 import { Pagination } from '@/components/ui/Pagination';
 import { StatsCard } from '@/components/ui/Tabs';
-import { formatDateTime, formatCurrency, slugToLabel, exportToCsv } from '@/lib/utils';
+import { formatDateTime, formatCurrency, slugToLabel, exportToCsv, getErrorMessage } from '@/lib/utils';
 import { PAGE_SIZE } from '@/lib/constants';
 import { Download, CheckCircle2, Clock, XCircle, Wallet } from 'lucide-react';
 import type { Payment, PaymentMethod, PaymentPurpose, PaymentStatus } from '@/types';
@@ -56,7 +56,7 @@ export function PaymentsPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
-  const { data: payments = [], isLoading } = useQuery({
+  const { data: payments = [], isLoading, isError, error } = useQuery({
     queryKey: ['payments', page, status, purpose, method, from, to],
     queryFn: () => paymentsApi.list({
       skip: (page - 1) * PAGE_SIZE,
@@ -152,7 +152,13 @@ export function PaymentsPage() {
             </div>
           </div>
 
-          <Table columns={columns} data={filtered} loading={isLoading} rowKey={(r) => r.id} emptyMessage="No payments found" />
+          {isError ? (
+            <div className="m-5 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+              Couldn't load payments: {getErrorMessage(error)}
+            </div>
+          ) : (
+            <Table columns={columns} data={filtered} loading={isLoading} rowKey={(r) => r.id} emptyMessage="No payments found" />
+          )}
 
           <div className="px-5 py-4 border-t border-gray-100">
             <Pagination page={page} pageSize={PAGE_SIZE} total={payments.length >= PAGE_SIZE ? page * PAGE_SIZE + 1 : (page - 1) * PAGE_SIZE + payments.length} onChange={setPage} />

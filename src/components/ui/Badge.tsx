@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 import type { ReactNode } from 'react';
 
-type BadgeVariant =
+export type BadgeVariant =
   | 'default'
   | 'success'
   | 'danger'

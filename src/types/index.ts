@@ -424,21 +424,7 @@ export interface ChatMessage {
   created_at: string;
 }
 
-// ─── Payment ──────────────────────────────────────────────────────────────────
-
-export type PaymentStatus = 'pending' | 'success' | 'failed' | 'refunded';
-export type TransactionType = 'booking' | 'wallet_fund' | 'refund' | 'withdrawal';
-
-export interface Transaction {
-  id: string;
-  reference: string;
-  user_id: string;
-  amount: number;
-  type: TransactionType;
-  status: PaymentStatus;
-  description?: string;
-  created_at: string;
-}
+// ─── Wallet Transaction ─────────────────────────────────────────────────────
 
 export interface WalletTransaction {
   id: string;
@@ -448,6 +434,38 @@ export interface WalletTransaction {
   description: string;
   reference: string;
   created_at: string;
+}
+
+// ─── Payments ─────────────────────────────────────────────────────────────────
+//
+// The Paystack/refund ledger — distinct from WalletTransaction above, which
+// is the wallet's own internal movement (deposits, trip-fare deductions,
+// referral credits). A payment here is either money that actually went
+// through Paystack, or a refund, regardless of what funded the original
+// payment being refunded. Paying a booking/package/rental *from* an
+// already-funded wallet has no row here — see payments/types.ts on the
+// backend for the full reasoning.
+
+export type PaymentStatus = 'pending' | 'successful' | 'failed';
+export type PaymentPurpose = 'wallet_funding' | 'booking_payment' | 'package_payment' | 'rental_payment' | 'refund' | 'other';
+// PaymentMethod itself is declared above (Booking section) — same three
+// values, reused here rather than redeclared.
+
+export interface Payment {
+  id: string;
+  reference: string;
+  user_id: string;
+  amount: number;
+  currency: string;
+  purpose: PaymentPurpose;
+  payment_method: PaymentMethod;
+  status: PaymentStatus;
+  booking_id: string | null;
+  failure_reason: string | null;
+  metadata: Record<string, unknown> | null;
+  initiated_at: string;
+  completed_at: string | null;
+  updated_at: string;
 }
 
 // ─── Waitlist ─────────────────────────────────────────────────────────────────

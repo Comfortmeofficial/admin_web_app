@@ -32,6 +32,7 @@ import { RideDetailPage } from './features/rides/pages/RideDetailPage';
 import { BookingsPage } from './features/bookings/pages/BookingsPage';
 import { BookingDetailPage } from './features/bookings/pages/BookingDetailPage';
 import { PaymentsPage } from './features/payments/pages/PaymentsPage';
+import { WalletTransactionsPage } from './features/wallet-transactions/pages/WalletTransactionsPage';
 import { WaitlistPage } from './features/waitlist/pages/WaitlistPage';
 import { ReferralsPage } from './features/referrals/pages/ReferralsPage';
 import { RentalsPage } from './features/rentals/pages/RentalsPage';
@@ -144,6 +145,7 @@ export default function App() {
 
                 {/* Other modules */}
                 <Route path="/payments" element={<PaymentsPage />} />
+                <Route path="/wallet-transactions" element={<WalletTransactionsPage />} />
                 <Route path="/waitlist" element={<WaitlistPage />} />
                 <Route path="/rentals" element={<RentalsPage />} />
                 {/* <Route path="/packages" element={<PackagesPage />} /> */}

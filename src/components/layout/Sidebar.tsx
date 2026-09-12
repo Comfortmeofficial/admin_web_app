@@ -21,6 +21,7 @@ import {
   Truck,
   Package,
   Shield,
+  UserPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/context/AuthContext';
@@ -45,6 +46,7 @@ const navItems: NavItem[] = [
   { label: 'Rides', path: '/rides', icon: <Calendar className="w-5 h-5" /> },
   { label: 'Bookings', path: '/bookings', icon: <BookOpen className="w-5 h-5" /> },
   { label: 'Payments', path: '/payments', icon: <CreditCard className="w-5 h-5" /> },
+  { label: 'Waitlist', path: '/waitlist', icon: <UserPlus className="w-5 h-5" /> },
   { label: 'Rentals', path: '/rentals', icon: <Truck className="w-5 h-5" /> },
   // Packages feature disabled — see the commented-out route in App.tsx.
   // { label: 'Packages', path: '/packages', icon: <Package className="w-5 h-5" /> },

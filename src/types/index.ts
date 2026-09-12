@@ -450,6 +450,21 @@ export interface WalletTransaction {
   created_at: string;
 }
 
+// ─── Waitlist ─────────────────────────────────────────────────────────────────
+
+export interface WaitlistEntry {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  city: string | null;
+  occupation: string | null;
+  commute_days: string | null;
+  challenge: string | null;
+  preference: string | null;
+  created_at: string;
+}
+
 // ─── Referral ─────────────────────────────────────────────────────────────────
 
 export interface ReferralCode {

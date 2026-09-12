@@ -65,7 +65,7 @@ export function RidesPage() {
   });
 
   const filtered = rides.filter((r) =>
-    `${r.id} ${r.driver_name ?? ''} ${r.bus_plate ?? ''}`.toLowerCase().includes(search.toLowerCase())
+    `${r.id} ${r.driver_name ?? ''} ${r.bus_plate ?? ''} ${r.route?.name ?? ''}`.toLowerCase().includes(search.toLowerCase())
   );
 
   const columns: Column<Ride>[] = [
@@ -74,6 +74,7 @@ export function RidesPage() {
       header: 'Ride ID',
       cell: (row) => <span className="font-mono text-xs text-gray-600">{String(row.id).slice(0, 8)}…</span>,
     },
+    { key: 'route', header: 'Route', cell: (r) => r.route?.name ?? '—' },
     { key: 'departure', header: 'Departure', cell: (r) => formatDateTime(r.departure_time) },
     { key: 'arrival', header: 'Arrival', cell: (r) => r.arrival_time && !r.arrival_time.startsWith('0001') ? formatDateTime(r.arrival_time) : '—' },
     { key: 'fare', header: 'Fare', cell: (r) => formatCurrency(r.fare) },

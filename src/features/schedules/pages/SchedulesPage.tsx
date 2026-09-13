@@ -7,6 +7,7 @@ import { routesApi } from '@/features/routes/api/routesApi';
 import { RouteFields, emptyRouteDraft } from '@/features/routes/components/RouteFields';
 import { busesApi } from '@/features/buses/api/busesApi';
 import { driversApi } from '@/features/drivers/api/driversApi';
+import { adminsApi } from '@/features/admins/api/adminsApi';
 import { Header } from '@/components/layout/Header';
 import { Table, type Column } from '@/components/ui/Table';
 import { Badge, statusBadge } from '@/components/ui/Badge';
@@ -70,7 +71,16 @@ export function SchedulesPage() {
       ),
     },
     { key: 'bus', header: 'Bus', cell: (r) => r.bus_plate ?? r.bus_id },
-    { key: 'driver', header: 'Driver', cell: (r) => r.driver_name ?? r.driver_id },
+    {
+      key: 'driver',
+      header: 'Driver / Marshal',
+      cell: (r) => (
+        <div className="text-xs">
+          <p className="text-gray-900">{r.driver_name ?? '—'}</p>
+          <p className="text-gray-500">{r.marshal_name ?? '—'}</p>
+        </div>
+      ),
+    },
     { key: 'time', header: 'Departs', cell: (r) => r.departure_time_of_day },
     { key: 'days', header: 'Days', cell: (r) => daysOfWeekLabel(r.days_of_week) },
     { key: 'window', header: 'Window', cell: (r) => `${formatDate(r.start_date)} → ${r.end_date ? formatDate(r.end_date) : 'ongoing'}` },
@@ -145,19 +155,33 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
   const { data: locations = [] } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations });
   const { data: buses = [] } = useQuery({ queryKey: ['buses'], queryFn: busesApi.list });
   const { data: allDrivers = [] } = useQuery({ queryKey: ['drivers'], queryFn: () => driversApi.list() });
-  const drivers = allDrivers.filter((d) => d.status !== 'suspended');
+  const { data: allMarshals = [] } = useQuery({ queryKey: ['admins-marshals'], queryFn: adminsApi.listMarshals });
 
   const [route, setRoute] = useState<CreateRoutePayload>(emptyRouteDraft());
   const [days, setDays] = useState<number[]>([]);
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<{
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<{
     bus_id: number;
-    driver_id: number;
     fare: number;
     departure_time_of_day: string;
-    duration_minutes?: number;
+    duration_minutes: number;
     start_date: string;
     end_date?: string;
   }>();
+
+  // No driver field any more — a bus already has exactly one assigned
+  // driver and (at most) one primary marshal (see BusDetailPage's Assign
+  // Driver/Marshal flows), so every trip this schedule generates just reads
+  // those fresh off the bus at generation time. This preview shows the
+  // *current* assignment; it's informational, not what actually gets stored.
+  const busId = watch('bus_id');
+  const selectedBus = buses.find((b) => Number(b.id) === Number(busId));
+  const previewDriver = selectedBus?.driver_id
+    ? allDrivers.find((d) => Number(d.id) === Number(selectedBus.driver_id))
+    : undefined;
+  const previewMarshalId = selectedBus?.marshal_ids?.[0];
+  const previewMarshal = previewMarshalId
+    ? allMarshals.find((m) => Number(m.id) === Number(previewMarshalId))
+    : undefined;
 
   useEffect(() => {
     if (!editing) {
@@ -168,7 +192,6 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
     }
     reset({
       bus_id: Number(editing.bus_id),
-      driver_id: Number(editing.driver_id),
       fare: editing.fare,
       departure_time_of_day: editing.departure_time_of_day,
       duration_minutes: editing.duration_minutes ?? undefined,
@@ -200,7 +223,7 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
       ...data,
       route,
       fare: Number(data.fare),
-      duration_minutes: data.duration_minutes ? Number(data.duration_minutes) : undefined,
+      duration_minutes: Number(data.duration_minutes),
       days_of_week: days,
       end_date: data.end_date || null,
     });
@@ -220,10 +243,23 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
       <div className="grid grid-cols-1 gap-4">
         <RouteFields value={route} onChange={setRoute} locations={locations} />
         <Select label="Bus" required options={buses.map((b) => ({ value: b.id, label: `${b.plate_number} — ${b.model}` }))} placeholder="Select bus" {...register('bus_id', { required: 'Required', valueAsNumber: true })} error={errors.bus_id?.message} />
-        <Select label="Driver" required options={drivers.map((d) => ({ value: d.id, label: `${d.first_name} ${d.last_name}` }))} placeholder="Select driver" {...register('driver_id', { required: 'Required', valueAsNumber: true })} error={errors.driver_id?.message} />
+        {selectedBus && (
+          <div className="flex items-center gap-6 -mt-2 px-3 py-2 rounded-lg bg-gray-50 text-xs">
+            <span>
+              <span className="text-gray-500">Driver: </span>
+              <span className={selectedBus.driver_id ? 'text-gray-900' : 'text-red-500'}>
+                {selectedBus.driver_id ? (previewDriver ? `${previewDriver.first_name} ${previewDriver.last_name}` : `#${selectedBus.driver_id}`) : 'None assigned — trips can\'t generate until one is'}
+              </span>
+            </span>
+            <span>
+              <span className="text-gray-500">Marshal: </span>
+              <span className="text-gray-900">{previewMarshal ? `${previewMarshal.first_name} ${previewMarshal.last_name}` : 'None assigned'}</span>
+            </span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <Input label="Departure Time" type="time" required {...register('departure_time_of_day', { required: 'Required' })} error={errors.departure_time_of_day?.message} />
-          <Input label="Duration (minutes, optional)" type="number" {...register('duration_minutes')} />
+          <Input label="Duration (minutes)" type="number" required {...register('duration_minutes', { required: 'Required', valueAsNumber: true })} error={errors.duration_minutes?.message} hint="Needed to detect overlapping trips on the same bus." />
         </div>
         <Input label="Fare (₦)" type="number" required {...register('fare', { required: 'Required' })} error={errors.fare?.message} />
 

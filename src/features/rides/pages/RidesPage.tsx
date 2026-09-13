@@ -8,6 +8,7 @@ import { routesApi } from '@/features/routes/api/routesApi';
 import { RouteFields, emptyRouteDraft } from '@/features/routes/components/RouteFields';
 import { busesApi } from '@/features/buses/api/busesApi';
 import { driversApi } from '@/features/drivers/api/driversApi';
+import { adminsApi } from '@/features/admins/api/adminsApi';
 import { Header } from '@/components/layout/Header';
 import { Table, type Column } from '@/components/ui/Table';
 import { Badge, statusBadge } from '@/components/ui/Badge';
@@ -164,17 +165,23 @@ function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
   const { data: locations = [] } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations });
   const { data: buses = [] } = useQuery({ queryKey: ['buses'], queryFn: busesApi.list });
   const { data: allDrivers = [] } = useQuery({ queryKey: ['drivers'], queryFn: () => driversApi.list() });
+  const { data: allMarshals = [] } = useQuery({ queryKey: ['admins-marshals'], queryFn: adminsApi.listMarshals });
 
   const [route, setRoute] = useState<CreateRoutePayload>(emptyRouteDraft());
-  // Driver isn't picked here any more — a bus already has exactly one
-  // assigned driver (see BusDetailPage's Assign Driver flow), so the ride
-  // just inherits it. Keeps a ride from ever silently pairing a bus with a
-  // driver other than the one actually assigned to it.
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<Omit<CreateRidePayload, 'route' | 'driver_id'>>();
+  // Driver/marshal aren't picked here — a bus already has exactly one
+  // assigned driver and (at most) one primary marshal (see BusDetailPage's
+  // Assign Driver/Marshal flows), and the backend always derives both from
+  // the bus server-side, never from this form. This preview is purely
+  // informational so the admin can see what a ride on this bus will get.
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<Omit<CreateRidePayload, 'route'>>();
   const busId = watch('bus_id');
   const selectedBus = buses.find((b) => Number(b.id) === Number(busId));
   const assignedDriver = selectedBus?.driver_id
     ? allDrivers.find((d) => Number(d.id) === Number(selectedBus.driver_id))
+    : undefined;
+  const primaryMarshalId = selectedBus?.marshal_ids?.[0];
+  const assignedMarshal = primaryMarshalId
+    ? allMarshals.find((m) => Number(m.id) === Number(primaryMarshalId))
     : undefined;
 
   const toRFC3339 = (dt: string) => dt ? new Date(dt).toISOString() : undefined;
@@ -182,7 +189,6 @@ function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
     if (!selectedBus?.driver_id) return;
     onSubmit({
       ...data,
-      driver_id: Number(selectedBus.driver_id),
       route,
       fare: Number(data.fare),
       departure_time: toRFC3339(data.departure_time)!,
@@ -201,10 +207,18 @@ function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
         <Select label="Bus" required options={buses.map((b) => ({ value: b.id, label: `${b.plate_number} — ${b.model}` }))} placeholder="Select bus" {...register('bus_id', { required: 'Required', valueAsNumber: true })} error={errors.bus_id?.message} />
         {selectedBus && (
           selectedBus.driver_id ? (
-            <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-              <span className="text-gray-500">Driver</span>
-              <span className="font-medium text-gray-900">
-                {assignedDriver ? `${assignedDriver.first_name} ${assignedDriver.last_name}` : `#${selectedBus.driver_id}`}
+            <div className="flex items-center gap-6 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+              <span>
+                <span className="text-gray-500">Driver</span>{' '}
+                <span className="font-medium text-gray-900">
+                  {assignedDriver ? `${assignedDriver.first_name} ${assignedDriver.last_name}` : `#${selectedBus.driver_id}`}
+                </span>
+              </span>
+              <span>
+                <span className="text-gray-500">Marshal</span>{' '}
+                <span className="font-medium text-gray-900">
+                  {assignedMarshal ? `${assignedMarshal.first_name} ${assignedMarshal.last_name}` : 'None assigned'}
+                </span>
               </span>
             </div>
           ) : (

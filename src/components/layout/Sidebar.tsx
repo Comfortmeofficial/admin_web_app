@@ -23,6 +23,7 @@ import {
   Shield,
   UserPlus,
   Wallet,
+  Route as RouteIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/context/AuthContext';
@@ -43,6 +44,7 @@ const navItems: NavItem[] = [
   { label: 'Bus Marshals', path: '/marshals', icon: <Shield className="w-5 h-5" /> },
   { label: 'Buses', path: '/buses', icon: <Bus className="w-5 h-5" /> },
   { label: 'Locations', path: '/locations', icon: <MapPin className="w-5 h-5" /> },
+  { label: 'Routes', path: '/routes', icon: <RouteIcon className="w-5 h-5" /> },
   { label: 'Schedules', path: '/schedules', icon: <Repeat className="w-5 h-5" /> },
   { label: 'Rides', path: '/rides', icon: <Calendar className="w-5 h-5" /> },
   { label: 'Bookings', path: '/bookings', icon: <BookOpen className="w-5 h-5" /> },

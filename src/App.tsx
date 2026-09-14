@@ -25,6 +25,7 @@ import { MarshalsPage } from './features/marshals/pages/MarshalsPage';
 import { MarshalDetailPage } from './features/marshals/pages/MarshalDetailPage';
 import { BusesPage } from './features/buses/pages/BusesPage';
 import { BusDetailPage } from './features/buses/pages/BusDetailPage';
+import { LocationsPage } from './features/routes/pages/LocationsPage';
 import { RoutesPage } from './features/routes/pages/RoutesPage';
 import { SchedulesPage } from './features/schedules/pages/SchedulesPage';
 import { RidesPage } from './features/rides/pages/RidesPage';
@@ -131,8 +132,8 @@ export default function App() {
                 <Route path="/buses/:id" element={<BusDetailPage />} />
 
                 {/* Operations */}
-                <Route path="/routes" element={<Navigate to="/schedules" replace />} />
-                <Route path="/locations" element={<RoutesPage />} />
+                <Route path="/locations" element={<LocationsPage />} />
+                <Route path="/routes" element={<RoutesPage />} />
                 <Route path="/schedules" element={<SchedulesPage />} />
 
                 {/* Rides */}

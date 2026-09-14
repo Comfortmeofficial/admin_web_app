@@ -23,7 +23,7 @@ export const routesApi = {
   },
 
   // Routes
-  list: async (params: { skip?: number; limit?: number } = {}) => {
+  list: async (params: { skip?: number; limit?: number; status?: 'active' | 'inactive' } = {}) => {
     const { data } = await bookingClient.get('/api/v1/routes', { params });
     return data as Route[];
   },
@@ -33,6 +33,10 @@ export const routesApi = {
   },
   create: async (payload: CreateRoutePayload) => {
     const { data } = await bookingClient.post('/api/v1/routes', payload);
+    return data as Route;
+  },
+  updateStatus: async (id: string, status: 'active' | 'inactive') => {
+    const { data } = await bookingClient.patch(`/api/v1/routes/${id}/status`, { status });
     return data as Route;
   },
   getDistance: async (locationId: string, destinationId: string) => {

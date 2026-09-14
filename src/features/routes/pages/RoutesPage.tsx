@@ -1,138 +1,134 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, MapPin } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { Plus, Pause, Play } from 'lucide-react';
 import { routesApi } from '../api/routesApi';
+import { RouteFields, emptyRouteDraft } from '../components/RouteFields';
 import { Header } from '@/components/layout/Header';
-import { Button } from '@/components/ui/Button';
 import { Table, type Column } from '@/components/ui/Table';
+import { Badge, statusBadge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Input } from '@/components/ui/Input';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { useToast } from '@/components/ui/Toast';
-import { formatDate, getErrorMessage } from '@/lib/utils';
-import type { Location } from '@/types';
+import { getErrorMessage } from '@/lib/utils';
+import type { CreateRoutePayload, Route, RouteStatus } from '@/types';
 
-// Locations replaces the old Stops/Locations/Destinations three-tab page —
-// the admin now manages exactly one place list, and a route's pickup point,
-// destination, and stops are all just picked from it (see RouteFields).
-// destinations/stops still exist as their own DB tables under the hood (the
-// mobile app reads them directly), but the admin never edits them
-// directly — createRoute mirrors a picked location into whichever of those
-// tables a route role needs (see findOrCreatePlaceIdByLocation backend-side).
+// Routes are created once here and reused by every Schedule/Ride going
+// forward (picked by route_id) — this replaced the old behavior where each
+// ride/schedule creation inlined its own fresh location/destination/stops
+// and never reused anything, even for the exact same direction.
 export function RoutesPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [deleteItem, setDeleteItem] = useState<Location | null>(null);
+  const [route, setRoute] = useState<CreateRoutePayload>(emptyRouteDraft());
 
-  const { data: locations = [], isLoading } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations });
+  const { data: locations = [] } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations });
+  const { data: routes = [], isLoading } = useQuery({ queryKey: ['routes'], queryFn: () => routesApi.list() });
 
   const createMutation = useMutation({
-    mutationFn: routesApi.createLocation,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['locations'] }); toast.success('Location created'); setShowCreate(false); },
+    mutationFn: routesApi.create,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['routes'] });
+      toast.success('Route created');
+      setShowCreate(false);
+      setRoute(emptyRouteDraft());
+    },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: routesApi.deleteLocation,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['locations'] }); toast.success('Location deleted'); setDeleteItem(null); },
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: RouteStatus }) => routesApi.updateStatus(id, status),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['routes'] }); toast.success('Route updated'); },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
-  const filtered = locations
-    .filter((l) => l.name.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const filtered = routes.filter((r) =>
+    `${r.name} ${r.location?.name ?? ''} ${r.destination?.name ?? ''}`.toLowerCase().includes(search.toLowerCase())
+  );
 
-  const columns: Column<Location>[] = [
+  const handleClose = () => { setShowCreate(false); setRoute(emptyRouteDraft()); };
+
+  const columns: Column<Route>[] = [
     {
-      key: 'name',
-      header: 'Name',
+      key: 'route',
+      header: 'Route',
       cell: (r) => (
-        <div className="flex items-center gap-2">
-          <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+        <div>
           <p className="font-medium text-gray-900">{r.name}</p>
+          <p className="text-xs text-gray-500">
+            {r.location?.name ?? r.location_id} → {r.destination?.name ?? r.destination_id}
+          </p>
         </div>
       ),
     },
-    { key: 'state', header: 'State', cell: (r) => r.state ?? '—' },
-    { key: 'created', header: 'Created', cell: (r) => formatDate(r.created_at) },
+    { key: 'distance', header: 'Distance', cell: (r) => r.distance_km != null ? `${r.distance_km} km` : '—' },
+    { key: 'stops', header: 'Stops', cell: (r) => r.stops?.length ?? 0 },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (r) => <Badge variant={statusBadge(r.status)} dot>{r.status === 'active' ? 'Active' : 'Inactive'}</Badge>,
+    },
     {
       key: 'actions',
       header: '',
       cell: (row) => (
-        <button onClick={(e) => { e.stopPropagation(); setDeleteItem(row); }} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500">
-          <Trash2 className="w-4 h-4" />
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            statusMutation.mutate({ id: row.id, status: row.status === 'active' ? 'inactive' : 'active' });
+          }}
+          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+          title={row.status === 'active' ? 'Mark inactive' : 'Mark active'}
+        >
+          {row.status === 'active' ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
         </button>
       ),
-      className: 'w-12',
+      className: 'w-16',
     },
   ];
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Locations" subtitle="Manage the places routes are built from — pickup points, destinations, and stops all draw from this list" />
+      <Header title="Routes" subtitle="Create a route once — Schedules and Rides pick from this list instead of re-entering it" />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <SearchInput value={search} onChange={setSearch} placeholder="Search locations…" />
-            <Button icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreate(true)}>
-              Add Location
-            </Button>
+            <h2 className="font-semibold text-gray-900">All Routes</h2>
+            <div className="flex items-center gap-3">
+              <SearchInput value={search} onChange={setSearch} placeholder="Search routes…" className="w-56" />
+              <Button icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreate(true)}>Create Route</Button>
+            </div>
           </div>
 
-          <Table columns={columns} data={filtered} loading={isLoading} rowKey={(r) => r.id} emptyMessage="No locations" />
+          <Table columns={columns} data={filtered} loading={isLoading} rowKey={(r) => r.id} emptyMessage="No routes yet" />
         </div>
       </div>
 
-      <LocationForm
+      <Modal
         open={showCreate}
-        onClose={() => setShowCreate(false)}
-        onSubmit={(name, state) => createMutation.mutate({ name, state })}
-        loading={createMutation.isPending}
-      />
-
-      <ConfirmDialog
-        open={!!deleteItem}
-        onClose={() => setDeleteItem(null)}
-        onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
-        loading={deleteMutation.isPending}
-        message={`Delete location "${deleteItem?.name}"?`}
-      />
+        onClose={handleClose}
+        title="Create Route"
+        size="lg"
+        footer={
+          <>
+            <Button variant="outline" onClick={handleClose} disabled={createMutation.isPending}>Cancel</Button>
+            <Button
+              onClick={() => createMutation.mutate(route)}
+              loading={createMutation.isPending}
+              disabled={!route.name || !route.location_id || !route.destination_id}
+            >
+              Create Route
+            </Button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-1 gap-4">
+          <RouteFields value={route} onChange={setRoute} locations={locations} />
+        </div>
+      </Modal>
     </div>
-  );
-}
-
-function LocationForm({
-  open,
-  onClose,
-  onSubmit,
-  loading,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSubmit: (name: string, state?: string) => void;
-  loading?: boolean;
-}) {
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<{ name: string; state: string }>();
-  const submit = handleSubmit((d) => onSubmit(d.name, d.state));
-  return (
-    <Modal open={open} onClose={() => { onClose(); reset(); }} title="Add Location" size="sm"
-      footer={<><Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button><Button onClick={submit} loading={loading}>Create</Button></>}
-    >
-      <div className="flex flex-col gap-3">
-        <Input
-          label="Name"
-          required
-          placeholder="e.g. Ojota Bus Stop"
-          {...register('name', { required: 'Required' })}
-          error={errors.name?.message}
-        />
-        <Input label="State" {...register('state')} placeholder="e.g. Lagos" />
-      </div>
-    </Modal>
   );
 }

@@ -5,7 +5,6 @@ import { Plus, MoreVertical, Eye } from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
 import { ridesApi } from '../api/ridesApi';
 import { routesApi } from '@/features/routes/api/routesApi';
-import { RouteFields, emptyRouteDraft } from '@/features/routes/components/RouteFields';
 import { busesApi } from '@/features/buses/api/busesApi';
 import { driversApi } from '@/features/drivers/api/driversApi';
 import { adminsApi } from '@/features/admins/api/adminsApi';
@@ -22,7 +21,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { useToast } from '@/components/ui/Toast';
 import { formatDateTime, formatCurrency, getErrorMessage, slugToLabel } from '@/lib/utils';
 import { PAGE_SIZE } from '@/lib/constants';
-import type { Ride, CreateRidePayload, CreateRoutePayload, RideStatus } from '@/types';
+import type { Ride, CreateRidePayload, RideStatus } from '@/types';
 
 const STATUS_TABS = [
   { key: 'all', label: 'All' },
@@ -162,18 +161,17 @@ interface RideFormProps {
 }
 
 function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
-  const { data: locations = [] } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations });
+  const { data: routes = [] } = useQuery({ queryKey: ['routes', 'active'], queryFn: () => routesApi.list({ status: 'active' }) });
   const { data: buses = [] } = useQuery({ queryKey: ['buses'], queryFn: busesApi.list });
   const { data: allDrivers = [] } = useQuery({ queryKey: ['drivers'], queryFn: () => driversApi.list() });
   const { data: allMarshals = [] } = useQuery({ queryKey: ['admins-marshals'], queryFn: adminsApi.listMarshals });
 
-  const [route, setRoute] = useState<CreateRoutePayload>(emptyRouteDraft());
   // Driver/marshal aren't picked here — a bus already has exactly one
   // assigned driver and (at most) one primary marshal (see BusDetailPage's
   // Assign Driver/Marshal flows), and the backend always derives both from
   // the bus server-side, never from this form. This preview is purely
   // informational so the admin can see what a ride on this bus will get.
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<Omit<CreateRidePayload, 'route'>>();
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<CreateRidePayload>();
   const busId = watch('bus_id');
   const selectedBus = buses.find((b) => Number(b.id) === Number(busId));
   const assignedDriver = selectedBus?.driver_id
@@ -189,21 +187,28 @@ function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
     if (!selectedBus?.driver_id) return;
     onSubmit({
       ...data,
-      route,
       fare: Number(data.fare),
       departure_time: toRFC3339(data.departure_time)!,
       arrival_time: data.arrival_time ? toRFC3339(data.arrival_time) : undefined,
     });
   });
 
-  const handleClose = () => { onClose(); reset(); setRoute(emptyRouteDraft()); };
+  const handleClose = () => { onClose(); reset(); };
 
   return (
-    <Modal open={open} onClose={handleClose} title="Create Ride" size="xl"
+    <Modal open={open} onClose={handleClose} title="Create Ride" size="lg"
       footer={<><Button variant="outline" onClick={handleClose} disabled={loading}>Cancel</Button><Button onClick={submit} loading={loading} disabled={!selectedBus?.driver_id}>Create Ride</Button></>}
     >
       <div className="grid grid-cols-1 gap-4">
-        <RouteFields value={route} onChange={setRoute} locations={locations} />
+        <Select
+          label="Route"
+          required
+          options={routes.map((r) => ({ value: r.id, label: `${r.name}` }))}
+          placeholder="Select route"
+          hint={routes.length === 0 ? 'No active routes yet — create one from the Routes page first.' : undefined}
+          {...register('route_id', { required: 'Required', valueAsNumber: true })}
+          error={errors.route_id?.message}
+        />
         <Select label="Bus" required options={buses.map((b) => ({ value: b.id, label: `${b.plate_number} — ${b.model}` }))} placeholder="Select bus" {...register('bus_id', { required: 'Required', valueAsNumber: true })} error={errors.bus_id?.message} />
         {selectedBus && (
           selectedBus.driver_id ? (

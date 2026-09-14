@@ -4,7 +4,6 @@ import { Plus, Pause, Play, Pencil } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { schedulesApi } from '../api/schedulesApi';
 import { routesApi } from '@/features/routes/api/routesApi';
-import { RouteFields, emptyRouteDraft } from '@/features/routes/components/RouteFields';
 import { busesApi } from '@/features/buses/api/busesApi';
 import { driversApi } from '@/features/drivers/api/driversApi';
 import { adminsApi } from '@/features/admins/api/adminsApi';
@@ -17,7 +16,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/Toast';
 import { formatDate, getErrorMessage } from '@/lib/utils';
-import type { RideSchedule, CreateRideSchedulePayload, CreateRoutePayload, RideScheduleStatus } from '@/types';
+import type { RideSchedule, CreateRideSchedulePayload, RideScheduleStatus } from '@/types';
 
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
@@ -152,21 +151,13 @@ interface ScheduleFormProps {
 }
 
 function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFormProps) {
-  const { data: locations = [] } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations });
+  const { data: routes = [] } = useQuery({ queryKey: ['routes', 'active'], queryFn: () => routesApi.list({ status: 'active' }) });
   const { data: buses = [] } = useQuery({ queryKey: ['buses'], queryFn: busesApi.list });
   const { data: allDrivers = [] } = useQuery({ queryKey: ['drivers'], queryFn: () => driversApi.list() });
   const { data: allMarshals = [] } = useQuery({ queryKey: ['admins-marshals'], queryFn: adminsApi.listMarshals });
 
-  const [route, setRoute] = useState<CreateRoutePayload>(emptyRouteDraft());
   const [days, setDays] = useState<number[]>([]);
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<{
-    bus_id: number;
-    fare: number;
-    departure_time_of_day: string;
-    duration_minutes: number;
-    start_date: string;
-    end_date?: string;
-  }>();
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<CreateRideSchedulePayload>();
 
   // No driver field any more — a bus already has exactly one assigned
   // driver and (at most) one primary marshal (see BusDetailPage's Assign
@@ -186,24 +177,17 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
   useEffect(() => {
     if (!editing) {
       reset();
-      setRoute(emptyRouteDraft());
       setDays([]);
       return;
     }
     reset({
       bus_id: Number(editing.bus_id),
+      route_id: editing.route_id ? Number(editing.route_id) : undefined,
       fare: editing.fare,
       departure_time_of_day: editing.departure_time_of_day,
       duration_minutes: editing.duration_minutes ?? undefined,
       start_date: editing.start_date,
       end_date: editing.end_date ?? undefined,
-    });
-    setRoute({
-      name: editing.route_name,
-      location_id: Number(editing.location_id),
-      destination_id: Number(editing.destination_id),
-      distance_km: editing.distance_km,
-      stops: editing.stops.map((s) => ({ stop_id: s.stop_id, fare: s.fare ?? undefined })),
     });
     setDays(editing.days_of_week);
   }, [editing, reset]);
@@ -213,15 +197,11 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
   };
 
   const submit = handleSubmit((data) => {
-    if (!route.name || !route.location_id || !route.destination_id) {
-      return;
-    }
     if (days.length === 0) {
       return;
     }
     onSubmit({
       ...data,
-      route,
       fare: Number(data.fare),
       duration_minutes: Number(data.duration_minutes),
       days_of_week: days,
@@ -232,16 +212,23 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
   const handleClose = () => {
     onClose();
     reset();
-    setRoute(emptyRouteDraft());
     setDays([]);
   };
 
   return (
-    <Modal open={open} onClose={handleClose} title={editing ? 'Edit Schedule' : 'Create Schedule'} size="xl"
+    <Modal open={open} onClose={handleClose} title={editing ? 'Edit Schedule' : 'Create Schedule'} size="lg"
       footer={<><Button variant="outline" onClick={handleClose} disabled={loading}>Cancel</Button><Button onClick={submit} loading={loading}>{editing ? 'Save Changes' : 'Create Schedule'}</Button></>}
     >
       <div className="grid grid-cols-1 gap-4">
-        <RouteFields value={route} onChange={setRoute} locations={locations} />
+        <Select
+          label="Route"
+          required
+          options={routes.map((r) => ({ value: r.id, label: r.name }))}
+          placeholder="Select route"
+          hint={routes.length === 0 ? 'No active routes yet — create one from the Routes page first.' : undefined}
+          {...register('route_id', { required: 'Required', valueAsNumber: true })}
+          error={errors.route_id?.message}
+        />
         <Select label="Bus" required options={buses.map((b) => ({ value: b.id, label: `${b.plate_number} — ${b.model}` }))} placeholder="Select bus" {...register('bus_id', { required: 'Required', valueAsNumber: true })} error={errors.bus_id?.message} />
         {selectedBus && (
           <div className="flex items-center gap-6 -mt-2 px-3 py-2 rounded-lg bg-gray-50 text-xs">

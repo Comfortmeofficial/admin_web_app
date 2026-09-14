@@ -272,12 +272,15 @@ export interface Stop {
   created_at: string;
 }
 
+export type RouteStatus = 'active' | 'inactive';
+
 export interface Route {
   id: string;
   name: string;
   location_id: string;
   destination_id: string;
   distance_km?: number;
+  status: RouteStatus;
   stops?: Stop[];
   location?: Location;
   destination?: Destination;
@@ -325,13 +328,12 @@ export interface Ride {
   updated_at: string;
 }
 
-// Ride creation no longer picks an existing route — it always creates a
-// fresh, ride-specific one from these fields, so there's no separate
-// "manage routes" step to leave the form for.
+// Ride creation picks an existing, reusable route by id (created once on
+// the Routes page) rather than re-creating one from scratch every time.
 // No driver_id — the backend always derives the driver (and marshal) from
 // the bus's current assignment server-side, never from the request body.
 export interface CreateRidePayload {
-  route: CreateRoutePayload;
+  route_id: number;
   bus_id: number;
   departure_time: string;
   arrival_time?: string;
@@ -345,6 +347,7 @@ export type RideScheduleStatus = 'active' | 'paused';
 export interface RideSchedule {
   id: string;
   bus_id: string;
+  route_id: string | null;
   route_name: string;
   location_id: string;
   destination_id: string;
@@ -371,10 +374,11 @@ export interface RideSchedule {
 // No driver_id — a schedule no longer pins one. Every trip it generates
 // reads the assigned bus's *current* driver (and marshal) fresh at
 // generation time instead. duration_minutes is required (not optional) so
-// the backend can tell whether a bus's trips actually overlap.
+// the backend can tell whether a bus's trips actually overlap. route_id
+// picks an existing, reusable route — same reasoning as CreateRidePayload.
 export interface CreateRideSchedulePayload {
   bus_id: number;
-  route: CreateRoutePayload;
+  route_id: number;
   fare: number;
   departure_time_of_day: string;
   duration_minutes: number;

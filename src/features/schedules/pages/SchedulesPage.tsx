@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pause, Play, Pencil, MapPin } from 'lucide-react';
+import { Plus, Pause, Play, Pencil, Trash2, MapPin } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { schedulesApi } from '../api/schedulesApi';
 import { routesApi } from '@/features/routes/api/routesApi';
@@ -12,6 +12,7 @@ import { Table, type Column } from '@/components/ui/Table';
 import { Badge, statusBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/Toast';
@@ -30,6 +31,7 @@ export function SchedulesPage() {
   const toast = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<RideSchedule | null>(null);
+  const [deleteItem, setDeleteItem] = useState<RideSchedule | null>(null);
 
   const { data: schedules = [], isLoading } = useQuery({ queryKey: ['ride-schedules'], queryFn: schedulesApi.list });
 
@@ -55,6 +57,16 @@ export function SchedulesPage() {
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: RideScheduleStatus }) => schedulesApi.updateStatus(id, status),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['ride-schedules'] }); toast.success('Schedule updated'); },
+    onError: (e) => toast.error('Failed', getErrorMessage(e)),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: schedulesApi.delete,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ride-schedules'] });
+      toast.success('Schedule deleted');
+      setDeleteItem(null);
+    },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
@@ -110,9 +122,16 @@ export function SchedulesPage() {
           >
             {row.status === 'active' ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setDeleteItem(row); }}
+            className="p-1.5 rounded-lg hover:bg-red-50 text-red-500"
+            title="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       ),
-      className: 'w-24',
+      className: 'w-32',
     },
   ];
 
@@ -137,6 +156,14 @@ export function SchedulesPage() {
         onSubmit={(p) => editing ? updateMutation.mutate({ id: editing.id, payload: p }) : createMutation.mutate(p)}
         loading={createMutation.isPending || updateMutation.isPending}
         editing={editing}
+      />
+
+      <ConfirmDialog
+        open={!!deleteItem}
+        onClose={() => setDeleteItem(null)}
+        onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
+        loading={deleteMutation.isPending}
+        message={`Delete this schedule (${deleteItem?.route_name ?? 'route'}, ${deleteItem?.departure_time_of_day ?? ''})? Rides already generated from it are unaffected — this only stops future generation.`}
       />
     </div>
   );

@@ -265,11 +265,18 @@ export interface Destination {
   created_at: string;
 }
 
-export interface Stop {
+// A route's stop, as GET /routes actually returns it: stop_id/stop.id are
+// stops-table ids (resolved server-side), NOT the locations.id that
+// CreateRoutePayload.stops[].stop_id expects — re-editing a route must
+// re-resolve each one by name against the Locations list, not reuse it
+// directly. See findOrCreatePlaceIdByLocation on the backend for why.
+export interface RouteStop {
   id: string;
-  name: string;
-  order?: number;
-  created_at: string;
+  route_id: string;
+  stop_id: string;
+  stop_order: number;
+  fare: number | null;
+  stop: Location;
 }
 
 export type RouteStatus = 'active' | 'inactive';
@@ -277,11 +284,16 @@ export type RouteStatus = 'active' | 'inactive';
 export interface Route {
   id: string;
   name: string;
+  // Also not a locations.id — same caveat as RouteStop.stop_id, for the
+  // same reason: routes.destination_id points at the destinations mirror
+  // table. location_id (pickup) has no such caveat; it points at locations
+  // directly. Re-resolve via `destination.name` when editing.
   location_id: string;
   destination_id: string;
   distance_km?: number;
   status: RouteStatus;
-  stops?: Stop[];
+  tags: string[];
+  stops?: RouteStop[];
   location?: Location;
   destination?: Destination;
   created_at: string;
@@ -294,6 +306,7 @@ export interface CreateRoutePayload {
   destination_id: number;
   distance_km?: number;
   stops?: { stop_id: number; fare?: number }[];
+  tags?: string[];
 }
 
 // ─── Ride ─────────────────────────────────────────────────────────────────────

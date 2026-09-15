@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { MapPin, Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { routesApi } from '../api/routesApi';
@@ -81,6 +81,57 @@ function LocationSearch({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Free-form labels (e.g. "express", "peak-hour") an admin can attach to a
+// route instead of baking a disambiguator into the name itself — type and
+// press Enter/comma to add, click a chip's × to remove.
+function TagsInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[]) => void }) {
+  const [draft, setDraft] = useState('');
+
+  const addTag = (raw: string) => {
+    const tag = raw.trim();
+    if (!tag || tags.includes(tag)) return;
+    onChange([...tags, tag]);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(draft);
+      setDraft('');
+    } else if (e.key === 'Backspace' && !draft && tags.length > 0) {
+      onChange(tags.slice(0, -1));
+    }
+  };
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        Tags <span className="text-gray-400 font-normal">(optional)</span>
+      </label>
+      <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-2 border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-blue-500">
+        {tags.map((tag) => (
+          <span key={tag} className="flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-gray-100 text-xs text-gray-700">
+            {tag}
+            <button type="button" onClick={() => onChange(tags.filter((t) => t !== tag))} className="text-gray-400 hover:text-red-600">
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={() => { addTag(draft); setDraft(''); }}
+          placeholder={tags.length === 0 ? 'e.g. express, peak-hour' : ''}
+          className="flex-1 min-w-[8rem] text-sm outline-none py-0.5"
+        />
+      </div>
+      <p className="text-xs text-gray-400 mt-1">Press Enter or comma to add a tag.</p>
     </div>
   );
 }
@@ -247,6 +298,8 @@ export function RouteFields({ value, onChange, locations }: RouteFieldsProps) {
         )}
       </div>
 
+      <TagsInput tags={value.tags ?? []} onChange={(tags) => onChange((prev) => ({ ...prev, tags }))} />
+
       <div>
         <p className="text-sm font-medium text-gray-700 mb-1">Pickup Stops <span className="text-gray-400 font-normal">(optional)</span></p>
         <p className="text-xs text-gray-400 mb-2">
@@ -292,5 +345,5 @@ export function RouteFields({ value, onChange, locations }: RouteFieldsProps) {
 }
 
 export function emptyRouteDraft(): CreateRoutePayload {
-  return { name: '', location_id: 0, destination_id: 0, distance_km: undefined, stops: [] };
+  return { name: '', location_id: 0, destination_id: 0, distance_km: undefined, stops: [], tags: [] };
 }

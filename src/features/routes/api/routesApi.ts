@@ -35,6 +35,10 @@ export const routesApi = {
     const { data } = await bookingClient.post('/api/v1/routes', payload);
     return data as Route;
   },
+  update: async (id: string, payload: CreateRoutePayload) => {
+    const { data } = await bookingClient.put(`/api/v1/routes/${id}`, payload);
+    return data as Route;
+  },
   updateStatus: async (id: string, status: 'active' | 'inactive') => {
     const { data } = await bookingClient.patch(`/api/v1/routes/${id}/status`, { status });
     return data as Route;

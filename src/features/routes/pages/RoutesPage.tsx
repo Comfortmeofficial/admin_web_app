@@ -31,7 +31,7 @@ export function RoutesPage() {
     mutationFn: routesApi.create,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['routes'] });
-      toast.success('Route created');
+      toast.success('Route created', 'The return-direction route was created too, if one didn’t already exist.');
       setShowCreate(false);
       setRoute(emptyRouteDraft());
     },

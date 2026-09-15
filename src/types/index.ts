@@ -305,8 +305,16 @@ export interface CreateRoutePayload {
   location_id: number;
   destination_id: number;
   distance_km?: number;
-  stops?: { stop_id: number; fare?: number }[];
+  // No per-stop fare here any more — a route only defines *which* places
+  // are stops. Price is set fresh per ride/schedule instead, just like the
+  // base fare (see CreateRidePayload/CreateRideSchedulePayload.stop_fares).
+  stops?: { stop_id: number }[];
   tags?: string[];
+}
+
+export interface StopFare {
+  stop_id: number;
+  fare: number;
 }
 
 // ─── Ride ─────────────────────────────────────────────────────────────────────
@@ -337,6 +345,7 @@ export interface Ride {
   marshal_name?: string | null;
   schedule_id?: number | null;
   route?: Route;
+  stop_fares: StopFare[];
   created_at: string;
   updated_at: string;
 }
@@ -345,12 +354,15 @@ export interface Ride {
 // the Routes page) rather than re-creating one from scratch every time.
 // No driver_id — the backend always derives the driver (and marshal) from
 // the bus's current assignment server-side, never from the request body.
+// stop_fares sets each stop's pickup price for this ride specifically — a
+// stop with no entry here just charges the base fare.
 export interface CreateRidePayload {
   route_id: number;
   bus_id: number;
   departure_time: string;
   arrival_time?: string;
   fare: number;
+  stop_fares?: StopFare[];
 }
 
 // ─── Ride Schedule (recurring rides) ───────────────────────────────────────────
@@ -367,6 +379,7 @@ export interface RideSchedule {
   distance_km: number;
   stops: { stop_id: number; fare: number | null }[];
   fare: number;
+  stop_fares: StopFare[];
   departure_time_of_day: string;
   duration_minutes?: number | null;
   days_of_week: number[];
@@ -393,6 +406,7 @@ export interface CreateRideSchedulePayload {
   bus_id: number;
   route_id: number;
   fare: number;
+  stop_fares?: StopFare[];
   departure_time_of_day: string;
   duration_minutes: number;
   days_of_week: number[];

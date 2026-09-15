@@ -159,9 +159,6 @@ export function RouteFields({ value, onChange, locations }: RouteFieldsProps) {
   const [distanceLoading, setDistanceLoading] = useState(false);
   const [distanceFailed, setDistanceFailed] = useState(false);
   const [distanceRetryTick, setDistanceRetryTick] = useState(0);
-  const [stopFares, setStopFares] = useState<Record<number, string>>(() =>
-    Object.fromEntries((value.stops ?? []).map((s) => [s.stop_id, s.fare != null ? String(s.fare) : '']))
-  );
 
   const locationId = value.location_id;
   const destinationId = value.destination_id;
@@ -217,24 +214,11 @@ export function RouteFields({ value, onChange, locations }: RouteFieldsProps) {
   const addStop = (location: Location) => {
     const id = Number(location.id);
     if (selectedStopIds.includes(id)) return;
-    onChange((prev) => ({ ...prev, stops: [...(prev.stops ?? []), { stop_id: id, fare: undefined }] }));
+    onChange((prev) => ({ ...prev, stops: [...(prev.stops ?? []), { stop_id: id }] }));
   };
 
   const removeStop = (id: number) => {
     onChange((prev) => ({ ...prev, stops: (prev.stops ?? []).filter((s) => s.stop_id !== id) }));
-    setStopFares((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-  };
-
-  const setStopFare = (id: number, fareText: string) => {
-    setStopFares((prev) => ({ ...prev, [id]: fareText }));
-    onChange((prev) => ({
-      ...prev,
-      stops: (prev.stops ?? []).map((s) => (s.stop_id === id ? { ...s, fare: fareText ? Number(fareText) : undefined } : s)),
-    }));
   };
 
   return (
@@ -303,9 +287,9 @@ export function RouteFields({ value, onChange, locations }: RouteFieldsProps) {
       <div>
         <p className="text-sm font-medium text-gray-700 mb-1">Pickup Stops <span className="text-gray-400 font-normal">(optional)</span></p>
         <p className="text-xs text-gray-400 mb-2">
-          Riders can choose one of these as their pickup point instead of the main location. Set a
-          fare for a stop to charge a different price for boarding there — leave it blank to use the
-          ride's base fare.
+          Riders can choose one of these as their pickup point instead of the main location. Pricing
+          for each stop is set per ride or schedule, not here — see the Stop Fares section when
+          creating a ride.
         </p>
         <LocationSearch
           locations={locations}
@@ -315,28 +299,17 @@ export function RouteFields({ value, onChange, locations }: RouteFieldsProps) {
         />
         {selectedStops.length > 0 && (
           <div className="mt-2 border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
-            {selectedStops.map((s) => {
-              const id = Number(s.id);
-              return (
-                <div key={s.id} className="flex items-center gap-3 px-3 py-2.5">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    <span className="text-sm text-gray-900 truncate">{s.name}</span>
-                  </div>
-                  <input
-                    type="number"
-                    min={0}
-                    placeholder="Fare (₦)"
-                    value={stopFares[id] ?? ''}
-                    onChange={(e) => setStopFare(id, e.target.value)}
-                    className="w-28 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button type="button" onClick={() => removeStop(id)} className="text-gray-400 hover:text-red-600 shrink-0">
-                    <X className="w-4 h-4" />
-                  </button>
+            {selectedStops.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 px-3 py-2.5">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <span className="text-sm text-gray-900 truncate">{s.name}</span>
                 </div>
-              );
-            })}
+                <button type="button" onClick={() => removeStop(Number(s.id))} className="text-gray-400 hover:text-red-600 shrink-0">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>

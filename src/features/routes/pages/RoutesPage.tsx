@@ -35,7 +35,7 @@ function routeToDraft(route: Route, locations: Location[]): CreateRoutePayload {
     stops: (route.stops ?? [])
       .slice()
       .sort((a, b) => a.stop_order - b.stop_order)
-      .map((s) => ({ stop_id: idByName(s.stop?.name), fare: s.fare ?? undefined })),
+      .map((s) => ({ stop_id: idByName(s.stop?.name) })),
   };
 }
 

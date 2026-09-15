@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pause, Play, Pencil } from 'lucide-react';
+import { Plus, Pause, Play, Pencil, MapPin } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { schedulesApi } from '../api/schedulesApi';
 import { routesApi } from '@/features/routes/api/routesApi';
@@ -165,7 +165,9 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
   // those fresh off the bus at generation time. This preview shows the
   // *current* assignment; it's informational, not what actually gets stored.
   const busId = watch('bus_id');
+  const routeId = watch('route_id');
   const selectedBus = buses.find((b) => Number(b.id) === Number(busId));
+  const selectedRoute = routes.find((r) => Number(r.id) === Number(routeId));
   const previewDriver = selectedBus?.driver_id
     ? allDrivers.find((d) => Number(d.id) === Number(selectedBus.driver_id))
     : undefined;
@@ -174,15 +176,28 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
     ? allMarshals.find((m) => Number(m.id) === Number(previewMarshalId))
     : undefined;
 
+  // Per-stop pricing lives on the schedule itself now, same as fare — set
+  // fresh here rather than on the route (see RouteFields). Prefilled from
+  // editing.stop_fares when editing; cleared when the admin actually
+  // changes which route is selected (stop ids from the old route wouldn't
+  // mean anything on the new one). lastAppliedRouteId distinguishes "the
+  // route_id changed because we just reset() the form for editing" from "the
+  // admin picked a different route in the dropdown" — only the latter clears.
+  const [stopFares, setStopFares] = useState<Record<number, string>>({});
+  const lastAppliedRouteId = useRef<number | undefined>(undefined);
+
   useEffect(() => {
     if (!editing) {
       reset();
       setDays([]);
+      setStopFares({});
+      lastAppliedRouteId.current = undefined;
       return;
     }
+    const editingRouteId = editing.route_id ? Number(editing.route_id) : undefined;
     reset({
       bus_id: Number(editing.bus_id),
-      route_id: editing.route_id ? Number(editing.route_id) : undefined,
+      route_id: editingRouteId,
       fare: editing.fare,
       departure_time_of_day: editing.departure_time_of_day,
       duration_minutes: editing.duration_minutes ?? undefined,
@@ -190,7 +205,15 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
       end_date: editing.end_date ?? undefined,
     });
     setDays(editing.days_of_week);
+    setStopFares(Object.fromEntries((editing.stop_fares ?? []).map((f) => [f.stop_id, String(f.fare)])));
+    lastAppliedRouteId.current = editingRouteId;
   }, [editing, reset]);
+
+  useEffect(() => {
+    if (routeId === lastAppliedRouteId.current) return;
+    setStopFares({});
+    lastAppliedRouteId.current = routeId;
+  }, [routeId]);
 
   const toggleDay = (d: number) => {
     setDays((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort());
@@ -206,6 +229,9 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
       duration_minutes: Number(data.duration_minutes),
       days_of_week: days,
       end_date: data.end_date || null,
+      stop_fares: Object.entries(stopFares)
+        .filter(([, fare]) => fare !== '')
+        .map(([stopId, fare]) => ({ stop_id: Number(stopId), fare: Number(fare) })),
     });
   });
 
@@ -213,6 +239,7 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
     onClose();
     reset();
     setDays([]);
+    setStopFares({});
   };
 
   return (
@@ -249,6 +276,37 @@ function ScheduleForm({ open, onClose, onSubmit, loading, editing }: ScheduleFor
           <Input label="Duration (minutes)" type="number" required {...register('duration_minutes', { required: 'Required', valueAsNumber: true })} error={errors.duration_minutes?.message} hint="Needed to detect overlapping trips on the same bus." />
         </div>
         <Input label="Fare (₦)" type="number" required {...register('fare', { required: 'Required' })} error={errors.fare?.message} />
+
+        {selectedRoute && (selectedRoute.stops?.length ?? 0) > 0 && (
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-1">Stop Fares <span className="text-gray-400 font-normal">(optional)</span></p>
+            <p className="text-xs text-gray-400 mb-2">
+              Charge a different price for boarding at one of this route's stops — leave a stop blank
+              to use the base fare above. Applies to every trip this schedule generates.
+            </p>
+            <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+              {selectedRoute.stops!.map((s) => {
+                const stopId = Number(s.stop_id);
+                return (
+                  <div key={stopId} className="flex items-center gap-3 px-3 py-2.5">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-sm text-gray-900 truncate">{s.stop?.name ?? `Stop #${stopId}`}</span>
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="Fare (₦)"
+                      value={stopFares[stopId] ?? ''}
+                      onChange={(e) => setStopFares((prev) => ({ ...prev, [stopId]: e.target.value }))}
+                      className="w-28 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div>
           <p className="text-sm font-medium text-gray-700 mb-2">Repeats on</p>

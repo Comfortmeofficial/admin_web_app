@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, MoreVertical, Eye } from 'lucide-react';
-import { useForm, Controller } from 'react-hook-form';
+import { Plus, MoreVertical, Eye, MapPin } from 'lucide-react';
+import { useForm } from 'react-hook-form';
 import { ridesApi } from '../api/ridesApi';
 import { routesApi } from '@/features/routes/api/routesApi';
 import { busesApi } from '@/features/buses/api/busesApi';
@@ -173,7 +173,9 @@ function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
   // informational so the admin can see what a ride on this bus will get.
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<CreateRidePayload>();
   const busId = watch('bus_id');
+  const routeId = watch('route_id');
   const selectedBus = buses.find((b) => Number(b.id) === Number(busId));
+  const selectedRoute = routes.find((r) => Number(r.id) === Number(routeId));
   const assignedDriver = selectedBus?.driver_id
     ? allDrivers.find((d) => Number(d.id) === Number(selectedBus.driver_id))
     : undefined;
@@ -181,6 +183,13 @@ function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
   const assignedMarshal = primaryMarshalId
     ? allMarshals.find((m) => Number(m.id) === Number(primaryMarshalId))
     : undefined;
+
+  // Per-stop pricing is set here, per ride, same as the base fare above —
+  // not on the route itself (see RouteFields). Reset whenever the selected
+  // route changes so a stop fare from a previously-picked route can't leak
+  // into this one.
+  const [stopFares, setStopFares] = useState<Record<number, string>>({});
+  useEffect(() => { setStopFares({}); }, [routeId]);
 
   const toRFC3339 = (dt: string) => dt ? new Date(dt).toISOString() : undefined;
   const submit = handleSubmit((data) => {
@@ -190,10 +199,13 @@ function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
       fare: Number(data.fare),
       departure_time: toRFC3339(data.departure_time)!,
       arrival_time: data.arrival_time ? toRFC3339(data.arrival_time) : undefined,
+      stop_fares: Object.entries(stopFares)
+        .filter(([, fare]) => fare !== '')
+        .map(([stopId, fare]) => ({ stop_id: Number(stopId), fare: Number(fare) })),
     });
   });
 
-  const handleClose = () => { onClose(); reset(); };
+  const handleClose = () => { onClose(); reset(); setStopFares({}); };
 
   return (
     <Modal open={open} onClose={handleClose} title="Create Ride" size="lg"
@@ -237,6 +249,37 @@ function RideForm({ open, onClose, onSubmit, loading }: RideFormProps) {
           <Input label="Arrival Time (optional)" type="datetime-local" {...register('arrival_time')} />
         </div>
         <Input label="Fare (₦)" type="number" required {...register('fare', { required: 'Required' })} error={errors.fare?.message} />
+
+        {selectedRoute && (selectedRoute.stops?.length ?? 0) > 0 && (
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-1">Stop Fares <span className="text-gray-400 font-normal">(optional)</span></p>
+            <p className="text-xs text-gray-400 mb-2">
+              Charge a different price for boarding at one of this route's stops — leave a stop blank
+              to use the base fare above.
+            </p>
+            <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+              {selectedRoute.stops!.map((s) => {
+                const stopId = Number(s.stop_id);
+                return (
+                  <div key={stopId} className="flex items-center gap-3 px-3 py-2.5">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-sm text-gray-900 truncate">{s.stop?.name ?? `Stop #${stopId}`}</span>
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="Fare (₦)"
+                      value={stopFares[stopId] ?? ''}
+                      onChange={(e) => setStopFares((prev) => ({ ...prev, [stopId]: e.target.value }))}
+                      className="w-28 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   );

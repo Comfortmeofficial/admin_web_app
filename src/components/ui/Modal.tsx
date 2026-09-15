@@ -51,35 +51,46 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div
-        className={cn(
-          'relative z-10 flex flex-col w-full max-h-[calc(100vh-2rem)] rounded-xl bg-white shadow-2xl',
-          sizeClasses[size],
-          className
-        )}
-      >
-        {title && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
-            <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+    <div className="fixed inset-0 z-50">
+      {/* Purely decorative — the scroll layer below is what actually
+          receives clicks (it sits on top in paint order), so it's the one
+          that closes on outside-click, not this. */}
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" />
+      {/* This layer (not the box below) owns the scrolling: the box keeps
+          its own max-h + overflow-y-auto for the common case (pinned
+          header/footer, only the body scrolls), but if the box is ever
+          taller than the viewport allows for any reason (mobile viewport
+          units, a very tall form), this outer scroll is what keeps every
+          part of it reachable instead of silently clipping. */}
+      <div className="fixed inset-0 overflow-y-auto" onClick={onClose}>
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div
+            className={cn(
+              'relative z-10 flex flex-col w-full max-h-[calc(100vh-2rem)] rounded-xl bg-white shadow-2xl',
+              sizeClasses[size],
+              className
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {title && (
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
+                <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+                <button
+                  onClick={onClose}
+                  className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            <div className="px-6 py-4 overflow-y-auto">{children}</div>
+            {footer && (
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-2 flex-shrink-0">
+                {footer}
+              </div>
+            )}
           </div>
-        )}
-        <div className="px-6 py-4 overflow-y-auto">{children}</div>
-        {footer && (
-          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-2 flex-shrink-0">
-            {footer}
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

@@ -201,7 +201,6 @@ export function RideDetailPage() {
                 <dl className="space-y-3">
                   {[
                     ['Name', ride.driver_name],
-                    ['Rating', ride.driver_rating ? `${ride.driver_rating.toFixed(1)} ★` : '—'],
                   ].map(([label, value]) => (
                     <div key={label as string} className="flex justify-between gap-4">
                       <dt className="text-sm text-gray-500">{label as string}</dt>

@@ -520,6 +520,18 @@ export interface WaitlistEntry {
   challenge: string | null;
   preference: string | null;
   created_at: string;
+  updated_at: string;
+}
+
+export interface WaitlistEntryPayload {
+  full_name: string;
+  email: string;
+  phone?: string;
+  city?: string;
+  occupation?: string;
+  commute_days?: string;
+  challenge?: string;
+  preference?: string;
 }
 
 // ─── Referral ─────────────────────────────────────────────────────────────────

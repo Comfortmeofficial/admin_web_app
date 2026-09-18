@@ -121,7 +121,7 @@ export function DashboardPage() {
                 icon={<XCircle className="w-5 h-5 text-red-600" />}
                 iconBg="bg-red-100"
               />
-               <StatsCard
+              <StatsCard
                 label="Total Revenue"
                 value={formatCurrency(stats?.revenue ?? 0)}
                 icon={<TrendingUp className="w-5 h-5 text-green-600" />}
@@ -140,23 +140,18 @@ export function DashboardPage() {
                 iconBg="bg-amber-100"
               />
               <StatsCard
-                label="Referral Usage"
-                value={formatNumber(stats?.referral_usage ?? 0)}
-                icon={<Gift className="w-5 h-5 text-purple-600" />}
-                iconBg="bg-purple-100"
-              />
-              <StatsCard
                 label="Pending Rental Requests"
                 value={formatNumber(stats?.pending_rentals ?? 0)}
                 icon={<Truck className="w-5 h-5 text-amber-600" />}
                 iconBg="bg-amber-100"
               />
+              <StatsCard
+                label="Referral Usage"
+                value={formatNumber(stats?.referral_usage ?? 0)}
+                icon={<Gift className="w-5 h-5 text-purple-600" />}
+                iconBg="bg-purple-100"
+              />
             </div>
-
-            {/* Payment stats */}
-            {/* <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-             
-            </div> */}
 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

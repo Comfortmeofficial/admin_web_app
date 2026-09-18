@@ -1,11 +1,23 @@
-import { userClient, driverClient, busClient, bookingClient, walletClient } from '@/lib/api';
-import type { DashboardStats, DateRangeFilter, Ride, Booking } from '@/types';
+import { userClient, driverClient, busClient, bookingClient, walletClient, adminClient } from '@/lib/api';
+import type { DashboardStats, DateRangeFilter, Ride, Booking, Rental, Marshal } from '@/types';
 
 const LARGE = 1000;
 
 const safeArray = <T>(res: PromiseSettledResult<{ data: unknown }>): T[] => {
   if (res.status === 'fulfilled' && Array.isArray(res.value.data)) return res.value.data as T[];
   return [];
+};
+
+// Rentals' own list endpoint isn't always a bare array — mirrors the same
+// unwrapping rentalsApi.list does, since this fetches it directly rather
+// than through that helper (this whole file already talks to every service
+// via raw client.get + safeArray, not through each feature's own api.ts).
+const safeRentals = (res: PromiseSettledResult<{ data: unknown }>): Rental[] => {
+  if (res.status !== 'fulfilled') return [];
+  const { data } = res.value;
+  if (Array.isArray(data)) return data as Rental[];
+  const wrapped = data as { data?: Rental[]; rentals?: Rental[] };
+  return wrapped?.data ?? wrapped?.rentals ?? [];
 };
 
 // Mirrors the bucket windows wallet_service's /analytics endpoint uses, so
@@ -32,14 +44,17 @@ function filterSince<T>(items: T[], since: Date | null, getDate: (item: T) => st
 
 export const dashboardApi = {
   getStats: async (range: DateRangeFilter = 'month'): Promise<DashboardStats> => {
-    const [usersRes, driversRes, busesRes, ridesRes, bookingsRes, revenueRes] = await Promise.allSettled([
-      userClient.get('/api/v1/users/', { params: { skip: 0, limit: LARGE } }),
-      driverClient.get('/api/v1/drivers/', { params: { skip: 0, limit: LARGE } }),
-      busClient.get('/api/v1/buses', { params: { limit: LARGE } }),
-      bookingClient.get('/api/v1/rides', { params: { skip: 0, limit: LARGE } }),
-      bookingClient.get('/api/v1/bookings/all', { params: { skip: 0, limit: LARGE } }),
-      walletClient.get('/api/v1/wallet/analytics', { params: { range } }),
-    ]);
+    const [usersRes, driversRes, busesRes, ridesRes, bookingsRes, revenueRes, marshalsRes, rentalsRes] =
+      await Promise.allSettled([
+        userClient.get('/api/v1/users/', { params: { skip: 0, limit: LARGE } }),
+        driverClient.get('/api/v1/drivers/', { params: { skip: 0, limit: LARGE } }),
+        busClient.get('/api/v1/buses', { params: { limit: LARGE } }),
+        bookingClient.get('/api/v1/rides', { params: { skip: 0, limit: LARGE } }),
+        bookingClient.get('/api/v1/bookings/all', { params: { skip: 0, limit: LARGE } }),
+        walletClient.get('/api/v1/wallet/analytics', { params: { range } }),
+        adminClient.get('/api/v1/admins/marshals'),
+        bookingClient.get('/api/v1/rentals', { params: { skip: 0, limit: LARGE, status: 'pending' } }),
+      ]);
 
     const since = sinceFor(range);
     const users = filterSince(
@@ -76,11 +91,17 @@ export const dashboardApi = {
     // The endpoint is already scoped server-side to the same `range`.
     const revenueBuckets = safeArray<{ revenue: number }>(revenueRes as PromiseSettledResult<{ data: unknown }>);
     const revenue = revenueBuckets.reduce((sum, b) => sum + (b.revenue ?? 0), 0);
+    const marshals = safeArray<Marshal>(marshalsRes as PromiseSettledResult<{ data: unknown }>);
+    // Server-side filtered to status=pending already; not date-scoped by
+    // `range` like the rest of this endpoint — a pending request stays
+    // relevant to an admin regardless of when it came in.
+    const pendingRentals = safeRentals(rentalsRes as PromiseSettledResult<{ data: unknown }>);
 
     return {
       total_users: users.length,
       total_drivers: drivers.length,
       total_buses: buses.length,
+      total_marshals: marshals.length,
       active_rides: rides.filter((r) => r.status === 'active' || r.status === 'boarding').length,
       scheduled_rides: rides.filter((r) => r.status === 'scheduled').length,
       completed_rides: rides.filter((r) => r.status === 'completed').length,
@@ -91,6 +112,7 @@ export const dashboardApi = {
       successful_payments: bookings.filter((b) => b.status === 'confirmed' || b.status === 'completed').length,
       failed_payments: 0,
       referral_usage: 0,
+      pending_rentals: pendingRentals.length,
     };
   },
 

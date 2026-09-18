@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Users, Car, Bus, Calendar, BookOpen, CreditCard, TrendingUp, Gift,
-  Activity, CheckCircle, XCircle, Clock
+  Activity, CheckCircle, XCircle, Clock, Shield, Truck
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -86,6 +86,12 @@ export function DashboardPage() {
                 iconBg="bg-indigo-100"
               />
               <StatsCard
+                label="Bus Marshals"
+                value={formatNumber(stats?.total_marshals ?? 0)}
+                icon={<Shield className="w-5 h-5 text-cyan-600" />}
+                iconBg="bg-cyan-100"
+              />
+              <StatsCard
                 label="Total Bookings"
                 value={formatNumber(stats?.total_bookings ?? 0)}
                 icon={<BookOpen className="w-5 h-5 text-violet-600" />}
@@ -142,6 +148,12 @@ export function DashboardPage() {
                 value={formatNumber(stats?.referral_usage ?? 0)}
                 icon={<Gift className="w-5 h-5 text-purple-600" />}
                 iconBg="bg-purple-100"
+              />
+              <StatsCard
+                label="Pending Rental Requests"
+                value={formatNumber(stats?.pending_rentals ?? 0)}
+                icon={<Truck className="w-5 h-5 text-amber-600" />}
+                iconBg="bg-amber-100"
               />
             </div>
 

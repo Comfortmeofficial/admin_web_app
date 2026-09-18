@@ -698,6 +698,7 @@ export interface DashboardStats {
   total_users: number;
   total_drivers: number;
   total_buses: number;
+  total_marshals: number;
   active_rides: number;
   scheduled_rides: number;
   completed_rides: number;
@@ -708,6 +709,7 @@ export interface DashboardStats {
   successful_payments: number;
   failed_payments: number;
   referral_usage: number;
+  pending_rentals: number;
 }
 
 export type DateRangeFilter = 'today' | 'week' | 'month' | 'year' | 'all' | 'custom';

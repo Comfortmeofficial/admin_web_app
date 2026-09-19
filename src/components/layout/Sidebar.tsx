@@ -24,6 +24,7 @@ import {
   UserPlus,
   Wallet,
   Route as RouteIcon,
+  ClipboardCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/context/AuthContext';
@@ -61,6 +62,7 @@ const navItems: NavItem[] = [
   { label: 'Audit Logs', path: '/audit-logs', icon: <ClipboardList className="w-5 h-5" /> },
   { label: 'Support', path: '/support', icon: <HeadphonesIcon className="w-5 h-5" /> },
   { label: 'Settings', path: '/settings', icon: <Settings className="w-5 h-5" /> },
+  { label: 'Trip Surveys', path: '/surveys', icon: <ClipboardCheck className="w-5 h-5" /> },
 ];
 
 // A bus marshal's job is scoped entirely to the trip they're conducting —

@@ -436,6 +436,25 @@ export interface Booking {
   updated_at: string;
 }
 
+export interface SurveyQuestion {
+  id: number;
+  question: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SurveyResponse {
+  id: number;
+  booking_id: number;
+  ride_id: number;
+  user_id: number;
+  booking_reference: string;
+  answers: Record<string, string>;
+  submitted_at: string;
+}
+
 // ─── Marshal / trip chat ────────────────────────────────────────────────────
 
 export interface Passenger {

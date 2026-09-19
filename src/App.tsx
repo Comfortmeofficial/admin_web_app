@@ -45,6 +45,7 @@ import { ReportsPage } from './features/reports/pages/ReportsPage';
 import { AuditLogsPage } from './features/audit/pages/AuditLogsPage';
 import { SettingsPage } from './features/settings/pages/SettingsPage';
 import { SupportPage } from './features/support/pages/SupportPage';
+import { SurveysPage } from './features/surveys/pages/SurveysPage';
 import { MyTripPage } from './features/marshal/pages/MyTripPage';
 
 // A bus marshal's whole job in this dashboard is My Trip — everything else
@@ -156,6 +157,7 @@ export default function App() {
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/audit-logs" element={<AuditLogsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/surveys" element={<SurveysPage />} />
                 <Route path="/support" element={<SupportPage />} />
 
                 {/* Fallback */}

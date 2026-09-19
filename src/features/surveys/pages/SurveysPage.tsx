@@ -4,7 +4,8 @@ import { ClipboardCheck, Pencil, Plus, Trash2 } from 'lucide-react';
 import { surveysApi } from '../api/surveysApi';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
+import { Input, Textarea } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Card } from '@/components/ui/Tabs';
 import { Badge } from '@/components/ui/Badge';
 import { Tabs } from '@/components/ui/Tabs';
@@ -34,13 +35,15 @@ function QuestionManager() {
   const qc = useQueryClient();
   const toast = useToast();
   const [question, setQuestion] = useState('');
+  const [questionType, setQuestionType] = useState<SurveyQuestion['question_type']>('text');
+  const [optionsText, setOptionsText] = useState('');
   const [editing, setEditing] = useState<SurveyQuestion | null>(null);
   const { data: questions = [], isLoading } = useQuery({ queryKey: ['survey-questions'], queryFn: surveysApi.listQuestions });
   const saveMutation = useMutation({
     mutationFn: () => editing
-      ? surveysApi.updateQuestion(editing.id, { question, sort_order: editing.sort_order, is_active: editing.is_active })
-      : surveysApi.createQuestion({ question, sort_order: questions.length, is_active: true }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['survey-questions'] }); setQuestion(''); setEditing(null); toast.success('Survey question saved'); },
+      ? surveysApi.updateQuestion(editing.id, { question, question_type: questionType, options: optionsText.split('\n').map((item) => item.trim()).filter(Boolean), sort_order: editing.sort_order, is_active: editing.is_active })
+      : surveysApi.createQuestion({ question, question_type: questionType, options: optionsText.split('\n').map((item) => item.trim()).filter(Boolean), sort_order: questions.length, is_active: true }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['survey-questions'] }); setQuestion(''); setQuestionType('text'); setOptionsText(''); setEditing(null); toast.success('Survey question saved'); },
     onError: (error) => toast.error('Could not save question', getErrorMessage(error)),
   });
   const deleteMutation = useMutation({
@@ -48,16 +51,20 @@ function QuestionManager() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['survey-questions'] }); toast.success('Question deleted'); },
     onError: (error) => toast.error('Could not delete question', getErrorMessage(error)),
   });
-  const startEdit = (item: SurveyQuestion) => { setEditing(item); setQuestion(item.question); };
+  const startEdit = (item: SurveyQuestion) => { setEditing(item); setQuestion(item.question); setQuestionType(item.question_type); setOptionsText(item.options.join('\n')); };
 
   return (
     <div className="space-y-4">
       <Card>
         <div className="flex items-center gap-3 mb-4"><ClipboardCheck className="w-5 h-5 text-primary-600" /><h2 className="font-semibold text-gray-900">Post-trip questions</h2></div>
-        <div className="flex gap-3">
+        <div className="space-y-3">
           <Input className="flex-1" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="e.g. What could make your next trip more comfortable?" />
-          <Button icon={<Plus className="w-4 h-4" />} onClick={() => saveMutation.mutate()} loading={saveMutation.isPending} disabled={!question.trim()}>{editing ? 'Save' : 'Add'}</Button>
-          {editing && <Button variant="ghost" onClick={() => { setEditing(null); setQuestion(''); }}>Cancel</Button>}
+          <div className="flex gap-3 items-end">
+            <Select label="Question type" value={questionType} onChange={(event) => setQuestionType(event.target.value as SurveyQuestion['question_type'])} options={[{ value: 'text', label: 'Text' }, { value: 'multiple_choice', label: 'Multiple choice' }, { value: 'rating', label: 'Rating (1–5)' }]} />
+            {questionType === 'multiple_choice' && <Textarea label="Options (one per line)" value={optionsText} onChange={(event) => setOptionsText(event.target.value)} rows={3} placeholder={'Very comfortable\nComfortable\nNeeds improvement'} />}
+            <Button icon={<Plus className="w-4 h-4" />} onClick={() => saveMutation.mutate()} loading={saveMutation.isPending} disabled={!question.trim() || (questionType === 'multiple_choice' && !optionsText.trim())}>{editing ? 'Save' : 'Add'}</Button>
+            {editing && <Button variant="ghost" onClick={() => { setEditing(null); setQuestion(''); setQuestionType('text'); setOptionsText(''); }}>Cancel</Button>}
+          </div>
         </div>
       </Card>
       <Card>
@@ -67,6 +74,7 @@ function QuestionManager() {
           {questions.map((item) => (
             <div key={item.id} className="flex items-center gap-3 py-3 border-b last:border-0 border-gray-100">
               <span className="text-sm text-gray-900 flex-1">{item.question}</span>
+              <Badge variant="gray">{item.question_type === 'multiple_choice' ? 'Choice' : item.question_type === 'rating' ? 'Rating' : 'Text'}</Badge>
               <Badge variant={item.is_active ? 'success' : 'gray'}>{item.is_active ? 'Active' : 'Inactive'}</Badge>
               <button title="Edit question" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400" onClick={() => startEdit(item)}><Pencil className="w-4 h-4" /></button>
               <button title="Delete question" className="p-1.5 rounded-lg hover:bg-red-50 text-red-400" onClick={() => deleteMutation.mutate(item.id)}><Trash2 className="w-4 h-4" /></button>

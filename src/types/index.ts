@@ -439,6 +439,8 @@ export interface Booking {
 export interface SurveyQuestion {
   id: number;
   question: string;
+  question_type: 'text' | 'multiple_choice' | 'rating';
+  options: string[];
   is_active: boolean;
   sort_order: number;
   created_at: string;

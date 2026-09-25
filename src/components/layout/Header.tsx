@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { ROLE_LABELS } from '@/lib/constants';
 import { useSidebar } from './SidebarContext';
+import { MarshalBell } from '@/features/marshal/MarshalBell';
 
 interface HeaderProps {
   title: string;
@@ -30,12 +31,16 @@ export function Header({ title, subtitle }: HeaderProps) {
         </div>
       </div>
       <div className="flex items-center gap-3 flex-shrink-0">
-        <button
-          onClick={() => navigate('/notifications')}
-          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors relative"
-        >
-          <Bell className="w-5 h-5" />
-        </button>
+        {admin?.role === 'bus_marshal' ? (
+          <MarshalBell />
+        ) : (
+          <button
+            onClick={() => navigate('/notifications')}
+            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors relative"
+          >
+            <Bell className="w-5 h-5" />
+          </button>
+        )}
         <div className="h-6 w-px bg-gray-200" />
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white text-xs font-semibold">

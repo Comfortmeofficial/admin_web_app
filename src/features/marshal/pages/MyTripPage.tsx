@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLocation, useNavigate } from 'react-router-dom';
 import QrScanner from 'qr-scanner';
 import { CheckCircle, MessageCircle, Phone, Play, QrCode, Send, ShieldAlert, Square, XCircle } from 'lucide-react';
 import { ridesApi } from '@/features/rides/api/ridesApi';
@@ -14,6 +15,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import { cn, formatDateTime, getErrorMessage, slugToLabel } from '@/lib/utils';
 import type { Passenger, Ride } from '@/types';
+import { DAY_MS, isOpen, pickDefaultRide, startOfToday, useChatInbox } from '../marshalInbox';
 
 // The rider's app shows a QR encoding "CMBOOKING:{booking_id}:{reference}"
 // (see BookingQRModal in customer_mobile_app) — independent of the ride's
@@ -25,14 +27,6 @@ function parseBookingQr(data: string): { bookingId: number; reference: string } 
   const bookingId = Number(parts[1]);
   if (!Number.isFinite(bookingId)) return null;
   return { bookingId, reference: parts.slice(2).join(':') };
-}
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
 }
 
 // "Today · 06:30", "Tomorrow · 06:30", "Mon, 28 Sep · 06:30"
@@ -47,47 +41,6 @@ function rideChipLabel(iso: string) {
         ? 'Tomorrow'
         : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   return `${day} · ${time}`;
-}
-
-const isOpen = (r: Ride) => r.status !== 'completed' && r.status !== 'cancelled';
-// Ride status is never auto-advanced after departure, so an old ride can sit
-// in "boarding"/"active" forever — only treat it as live if it's recent.
-const isLive = (r: Ride) =>
-  (r.status === 'active' || r.status === 'boarding') && new Date(r.departure_time).getTime() >= Date.now() - DAY_MS;
-
-// The trip the marshal most likely means: one already under way, else today's,
-// else the next one coming up, else the most recent. `rides` arrive oldest-first,
-// so defaulting to rides[0] used to land on the oldest trip ever assigned.
-function pickDefaultRide(rides: Ride[]): Ride | null {
-  const live = rides.find(isLive);
-  if (live) return live;
-  const todayStart = startOfToday();
-  const today = rides.find(
-    (r) => isOpen(r) && new Date(r.departure_time).getTime() >= todayStart && new Date(r.departure_time).getTime() < todayStart + DAY_MS,
-  );
-  if (today) return today;
-  const upcoming = rides.find((r) => isOpen(r) && new Date(r.departure_time).getTime() > Date.now());
-  if (upcoming) return upcoming;
-  return rides[rides.length - 1] ?? null;
-}
-
-// Which customer messages the marshal has already looked at, per rider, kept in
-// the browser (no read-state exists on the server): unread = the thread's
-// customer-message count minus the count last seen.
-const seenStorageKey = (rideId: string) => `marshal-chat-seen:${rideId}`;
-function loadSeen(rideId: string): Record<number, number> {
-  try {
-    return JSON.parse(localStorage.getItem(seenStorageKey(rideId)) ?? '{}');
-  } catch {
-    return {};
-  }
-}
-function saveSeen(rideId: string, seen: Record<number, number>) {
-  try {
-    localStorage.setItem(seenStorageKey(rideId), JSON.stringify(seen));
-  } catch {
-    // storage unavailable (private mode) — unread badges just reset on reload
-  }
 }
 
 type BoardMode = { kind: 'scan' } | { kind: 'passenger'; passenger: Passenger };
@@ -109,10 +62,6 @@ export function MyTripPage() {
   const [endTripOpen, setEndTripOpen] = useState(false);
   const [filter, setFilter] = useState<PassengerFilter>('pending');
   const [startTripOpen, setStartTripOpen] = useState(false);
-  const [seenState, setSeenState] = useState<{ rideId: string | null; map: Record<number, number> }>({
-    rideId: null,
-    map: {},
-  });
 
   const { data: rides = [], isLoading } = useQuery({
     queryKey: ['rides', 'mine'],
@@ -137,41 +86,9 @@ export function MyTripPage() {
   const passengersRef = useRef<Passenger[]>([]);
   passengersRef.current = passengers;
 
-  const { data: threads = [] } = useQuery({
-    queryKey: ['ride-chat-threads', activeRide?.id],
-    queryFn: () => ridesApi.getChatThreads(activeRide!.id),
-    enabled: !!activeRide,
-    refetchInterval: 8_000,
-  });
-
-  // Load this ride's "already seen" counts whenever the ride changes.
+  const { threads, loaded: threadsLoaded, unreadByUser, unreadTotal, markSeen } = useChatInbox(activeRide?.id ?? null);
   const activeRideId = activeRide?.id ?? null;
-  useEffect(() => {
-    if (activeRideId) setSeenState({ rideId: activeRideId, map: loadSeen(activeRideId) });
-  }, [activeRideId]);
-
-  const seen = seenState.rideId === activeRideId ? seenState.map : null;
-  const unreadByUser: Record<number, number> = {};
-  let unreadTotal = 0;
-  if (seen) {
-    for (const t of threads) {
-      const n = t.customer_message_count - (seen[t.user_id] ?? 0);
-      if (n > 0) {
-        unreadByUser[t.user_id] = n;
-        unreadTotal += n;
-      }
-    }
-  }
   const threadByUser = new Map(threads.map((t) => [t.user_id, t]));
-  const markSeen = (userId: number, count: number) => {
-    if (!activeRideId) return;
-    setSeenState((prev) => {
-      if (prev.rideId !== activeRideId || (prev.map[userId] ?? 0) >= count) return prev;
-      const map = { ...prev.map, [userId]: count };
-      saveSeen(activeRideId, map);
-      return { rideId: activeRideId, map };
-    });
-  };
 
   // Reading a thread (it's open) counts as seen, including messages that
   // arrive while it stays open.
@@ -182,14 +99,15 @@ export function MyTripPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatTarget, threads]);
 
-  // Alert when a new message lands while the marshal is on this page: a toast,
-  // a short buzz on phones that support it, and a count in the tab title.
+  // Alert when a new message lands while the marshal is on this page: a toast
+  // and a short buzz on phones that support it. Waits for the first successful
+  // load so messages that were already there don't announce themselves.
   const prevUnread = useRef<number | null>(null);
   useEffect(() => {
     prevUnread.current = null;
   }, [activeRideId]);
   useEffect(() => {
-    if (!seen) return;
+    if (!threadsLoaded) return;
     if (prevUnread.current !== null && unreadTotal > prevUnread.current) {
       const newest = threads
         .filter((t) => unreadByUser[t.user_id] && t.user_id !== chatTarget?.user_id)
@@ -202,7 +120,32 @@ export function MyTripPage() {
     }
     prevUnread.current = unreadTotal;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unreadTotal, seen]);
+  }, [unreadTotal, threadsLoaded]);
+
+  // Opened from the header bell: jump to that trip and open the rider's chat
+  // once their passenger row has loaded.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const pendingChat = useRef<{ rideId: string; userId: number } | null>(null);
+  useEffect(() => {
+    const st = location.state as { rideId?: string; openChatUserId?: number } | null;
+    if (!st?.openChatUserId) return;
+    pendingChat.current = { rideId: st.rideId ?? '', userId: st.openChatUserId };
+    if (st.rideId) setSelectedId(st.rideId);
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+  useEffect(() => {
+    const pending = pendingChat.current;
+    if (!pending || activeRideId !== pending.rideId) return;
+    const p = passengers.find((x) => x.user_id === pending.userId);
+    if (p) {
+      setChatTarget(p);
+      pendingChat.current = null;
+    }
+    // location.state too: for a notification about the trip already on screen,
+    // nothing else changes to re-run this after the request is recorded above.
+  }, [passengers, activeRideId, location.state]);
 
   useEffect(() => {
     const original = document.title;

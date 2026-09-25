@@ -25,6 +25,7 @@ import {
   Wallet,
   Route as RouteIcon,
   ClipboardCheck,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/context/AuthContext';
@@ -71,19 +72,30 @@ const marshalNavItems: NavItem[] = [
   { label: 'My Trip', path: '/my-trip', icon: <Shield className="w-5 h-5" /> },
 ];
 
-export function Sidebar() {
+export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { admin, logout } = useAuth();
   const itemsToRender = admin?.role === 'bus_marshal' ? marshalNavItems : navItems;
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 w-60 bg-slate-900 flex flex-col">
+    <>
+    {/* Below md the sidebar is an off-canvas drawer; this dims the page behind it. */}
+    {open && <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={onClose} aria-hidden="true" />}
+    <aside
+      className={cn(
+        'fixed inset-y-0 left-0 z-40 w-60 bg-slate-900 flex flex-col transition-transform duration-200 md:translate-x-0',
+        open ? 'translate-x-0' : '-translate-x-full',
+      )}
+    >
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 h-16 border-b border-slate-700/60 flex-shrink-0">
         <img src="/logo.png" alt="Comfortme" className="w-8 h-8 rounded-lg object-contain" />
-        <div>
+        <div className="flex-1">
           <p className="text-white font-bold text-sm leading-none">Comfortme</p>
           <p className="text-slate-400 text-xs mt-0.5">Admin Dashboard</p>
         </div>
+        <button onClick={onClose} className="md:hidden p-1 text-slate-400 hover:text-white" aria-label="Close menu">
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Nav */}
@@ -126,5 +138,6 @@ export function Sidebar() {
         </button>
       </div>
     </aside>
+    </>
   );
 }

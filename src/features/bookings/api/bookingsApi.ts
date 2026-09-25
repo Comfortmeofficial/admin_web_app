@@ -28,4 +28,8 @@ export const bookingsApi = {
   board: async (id: string, code: string) => {
     await bookingClient.post(`/api/v1/bookings/${id}/board`, { code });
   },
+
+  markNoShow: async (id: string) => {
+    await bookingClient.post(`/api/v1/bookings/${id}/no-show`);
+  },
 };

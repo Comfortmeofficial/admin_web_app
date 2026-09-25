@@ -46,7 +46,8 @@ import { AuditLogsPage } from './features/audit/pages/AuditLogsPage';
 import { SettingsPage } from './features/settings/pages/SettingsPage';
 import { SupportPage } from './features/support/pages/SupportPage';
 import { SurveysPage } from './features/surveys/pages/SurveysPage';
-import { MyTripPage } from './features/marshal/pages/MyTripPage';
+import { MySchedulePage } from './features/marshal/pages/MySchedulePage';
+import { TripDetailPage } from './features/marshal/pages/TripDetailPage';
 
 // A bus marshal's whole job in this dashboard is My Trip — everything else
 // on the general Dashboard is irrelevant to their role.
@@ -114,7 +115,8 @@ export default function App() {
               >
                 <Route index element={<HomeRedirect />} />
                 <Route path="/admins" element={<AdminsPage />} />
-                <Route path="/my-trip" element={<MyTripPage />} />
+                <Route path="/my-trip" element={<MySchedulePage />} />
+                <Route path="/my-trip/:rideId" element={<TripDetailPage />} />
 
                 {/* Users */}
                 <Route path="/users" element={<UsersPage />} />

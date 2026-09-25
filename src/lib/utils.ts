@@ -16,6 +16,10 @@ export function formatDateTime(dateStr: string): string {
   return formatDate(dateStr, 'MMM d, yyyy HH:mm');
 }
 
+export function formatTime(dateStr: string): string {
+  return formatDate(dateStr, 'HH:mm');
+}
+
 export function formatCurrency(amount: number, currency = 'NGN'): string {
   return new Intl.NumberFormat('en-NG', { style: 'currency', currency }).format(amount);
 }

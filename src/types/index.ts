@@ -465,6 +465,7 @@ export interface Passenger {
   seat_number: string;
   status: BookingStatus;
   is_on_board: boolean;
+  no_show_at: string | null;
   pickup_stop_id: number | null;
   user_id: number;
   first_name: string;
@@ -489,6 +490,18 @@ export interface ChatThread {
   last_sender_type: 'customer' | 'marshal';
   last_at: string;
   customer_message_count: number;
+}
+
+export type TripIssueCategory = 'mechanical' | 'passenger' | 'safety' | 'other';
+
+export interface TripIssue {
+  id: number;
+  ride_id: number;
+  reported_by_admin_id: number;
+  reported_by_name: string;
+  category: TripIssueCategory;
+  description: string;
+  created_at: string;
 }
 
 // ─── Wallet Transaction ─────────────────────────────────────────────────────

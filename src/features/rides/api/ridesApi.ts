@@ -1,5 +1,5 @@
 import { bookingClient } from '@/lib/api';
-import type { ChatMessage, ChatThread, Passenger, Ride, CreateRidePayload, RideStatus } from '@/types';
+import type { ChatMessage, ChatThread, Passenger, Ride, CreateRidePayload, RideStatus, TripIssue, TripIssueCategory } from '@/types';
 
 export const ridesApi = {
   list: async (params: { skip?: number; limit?: number; status?: string } = {}) => {
@@ -80,5 +80,15 @@ export const ridesApi = {
   sendChatMessage: async (rideId: string, userId: number, message: string) => {
     const { data } = await bookingClient.post(`/api/v1/rides/${rideId}/chat/${userId}/messages`, { message });
     return data as ChatMessage;
+  },
+
+  getIssues: async (rideId: string) => {
+    const { data } = await bookingClient.get(`/api/v1/rides/${rideId}/issues`);
+    return data as TripIssue[];
+  },
+
+  reportIssue: async (rideId: string, input: { category: TripIssueCategory; description: string }) => {
+    const { data } = await bookingClient.post(`/api/v1/rides/${rideId}/issues`, input);
+    return data as TripIssue;
   },
 };

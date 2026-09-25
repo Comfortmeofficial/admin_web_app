@@ -69,7 +69,7 @@ const navItems: NavItem[] = [
 // A bus marshal's job is scoped entirely to the trip they're conducting —
 // they get a single-purpose nav, not the full staff dashboard.
 const marshalNavItems: NavItem[] = [
-  { label: 'My Trip', path: '/my-trip', icon: <Shield className="w-5 h-5" /> },
+  { label: 'My Schedule', path: '/my-trip', icon: <Shield className="w-5 h-5" /> },
 ];
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {

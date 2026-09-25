@@ -66,7 +66,7 @@ export function MarshalBell() {
                       className="w-full text-left px-4 py-3 hover:bg-gray-50"
                       onClick={() => {
                         setOpen(false);
-                        navigate('/my-trip', { state: { rideId: ride?.id, openChatUserId: t.user_id } });
+                        if (ride) navigate(`/my-trip/${ride.id}`, { state: { openChatUserId: t.user_id } });
                       }}
                     >
                       <div className="flex items-center justify-between gap-2">

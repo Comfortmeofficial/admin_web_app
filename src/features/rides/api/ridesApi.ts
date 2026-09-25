@@ -1,5 +1,5 @@
 import { bookingClient } from '@/lib/api';
-import type { ChatMessage, Passenger, Ride, CreateRidePayload, RideStatus } from '@/types';
+import type { ChatMessage, ChatThread, Passenger, Ride, CreateRidePayload, RideStatus } from '@/types';
 
 export const ridesApi = {
   list: async (params: { skip?: number; limit?: number; status?: string } = {}) => {
@@ -52,6 +52,16 @@ export const ridesApi = {
 
   // Marshal-facing counterpart to updateStatus (which they can't call —
   // that's ops-only) — closes out a trip they're actually present for.
+  startTrip: async (rideId: string) => {
+    const { data } = await bookingClient.post(`/api/v1/rides/${rideId}/start-trip`);
+    return data as Ride;
+  },
+
+  getChatThreads: async (rideId: string) => {
+    const { data } = await bookingClient.get(`/api/v1/rides/${rideId}/chat`);
+    return data as ChatThread[];
+  },
+
   endTrip: async (rideId: string) => {
     const { data } = await bookingClient.post(`/api/v1/rides/${rideId}/end-trip`);
     return data as Ride;

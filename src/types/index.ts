@@ -482,6 +482,15 @@ export interface ChatMessage {
   created_at: string;
 }
 
+// One entry per rider who has messaged on a ride (the marshal's inbox).
+export interface ChatThread {
+  user_id: number;
+  last_message: string;
+  last_sender_type: 'customer' | 'marshal';
+  last_at: string;
+  customer_message_count: number;
+}
+
 // ─── Wallet Transaction ─────────────────────────────────────────────────────
 
 export interface WalletTransaction {

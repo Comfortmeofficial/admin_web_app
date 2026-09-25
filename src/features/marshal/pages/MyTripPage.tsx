@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import QrScanner from 'qr-scanner';
-import { CheckCircle, MessageCircle, Phone, QrCode, Send, ShieldAlert, XCircle } from 'lucide-react';
+import { CheckCircle, MessageCircle, Phone, Play, QrCode, Send, ShieldAlert, Square, XCircle } from 'lucide-react';
 import { ridesApi } from '@/features/rides/api/ridesApi';
 import { bookingsApi } from '@/features/bookings/api/bookingsApi';
 import { Header } from '@/components/layout/Header';
@@ -71,6 +71,25 @@ function pickDefaultRide(rides: Ride[]): Ride | null {
   return rides[rides.length - 1] ?? null;
 }
 
+// Which customer messages the marshal has already looked at, per rider, kept in
+// the browser (no read-state exists on the server): unread = the thread's
+// customer-message count minus the count last seen.
+const seenStorageKey = (rideId: string) => `marshal-chat-seen:${rideId}`;
+function loadSeen(rideId: string): Record<number, number> {
+  try {
+    return JSON.parse(localStorage.getItem(seenStorageKey(rideId)) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+function saveSeen(rideId: string, seen: Record<number, number>) {
+  try {
+    localStorage.setItem(seenStorageKey(rideId), JSON.stringify(seen));
+  } catch {
+    // storage unavailable (private mode) — unread badges just reset on reload
+  }
+}
+
 type BoardMode = { kind: 'scan' } | { kind: 'passenger'; passenger: Passenger };
 type PassengerFilter = 'pending' | 'boarded' | 'all';
 
@@ -89,6 +108,11 @@ export function MyTripPage() {
   const [chatTarget, setChatTarget] = useState<Passenger | null>(null);
   const [endTripOpen, setEndTripOpen] = useState(false);
   const [filter, setFilter] = useState<PassengerFilter>('pending');
+  const [startTripOpen, setStartTripOpen] = useState(false);
+  const [seenState, setSeenState] = useState<{ rideId: string | null; map: Record<number, number> }>({
+    rideId: null,
+    map: {},
+  });
 
   const { data: rides = [], isLoading } = useQuery({
     queryKey: ['rides', 'mine'],
@@ -112,6 +136,81 @@ export function MyTripPage() {
   // through this instead of a stale closure.
   const passengersRef = useRef<Passenger[]>([]);
   passengersRef.current = passengers;
+
+  const { data: threads = [] } = useQuery({
+    queryKey: ['ride-chat-threads', activeRide?.id],
+    queryFn: () => ridesApi.getChatThreads(activeRide!.id),
+    enabled: !!activeRide,
+    refetchInterval: 8_000,
+  });
+
+  // Load this ride's "already seen" counts whenever the ride changes.
+  const activeRideId = activeRide?.id ?? null;
+  useEffect(() => {
+    if (activeRideId) setSeenState({ rideId: activeRideId, map: loadSeen(activeRideId) });
+  }, [activeRideId]);
+
+  const seen = seenState.rideId === activeRideId ? seenState.map : null;
+  const unreadByUser: Record<number, number> = {};
+  let unreadTotal = 0;
+  if (seen) {
+    for (const t of threads) {
+      const n = t.customer_message_count - (seen[t.user_id] ?? 0);
+      if (n > 0) {
+        unreadByUser[t.user_id] = n;
+        unreadTotal += n;
+      }
+    }
+  }
+  const threadByUser = new Map(threads.map((t) => [t.user_id, t]));
+  const markSeen = (userId: number, count: number) => {
+    if (!activeRideId) return;
+    setSeenState((prev) => {
+      if (prev.rideId !== activeRideId || (prev.map[userId] ?? 0) >= count) return prev;
+      const map = { ...prev.map, [userId]: count };
+      saveSeen(activeRideId, map);
+      return { rideId: activeRideId, map };
+    });
+  };
+
+  // Reading a thread (it's open) counts as seen, including messages that
+  // arrive while it stays open.
+  useEffect(() => {
+    if (!chatTarget) return;
+    const t = threadByUser.get(chatTarget.user_id);
+    if (t) markSeen(chatTarget.user_id, t.customer_message_count);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatTarget, threads]);
+
+  // Alert when a new message lands while the marshal is on this page: a toast,
+  // a short buzz on phones that support it, and a count in the tab title.
+  const prevUnread = useRef<number | null>(null);
+  useEffect(() => {
+    prevUnread.current = null;
+  }, [activeRideId]);
+  useEffect(() => {
+    if (!seen) return;
+    if (prevUnread.current !== null && unreadTotal > prevUnread.current) {
+      const newest = threads
+        .filter((t) => unreadByUser[t.user_id] && t.user_id !== chatTarget?.user_id)
+        .sort((a, b) => b.last_at.localeCompare(a.last_at))[0];
+      if (newest) {
+        const who = passengersRef.current.find((p) => p.user_id === newest.user_id);
+        toast.info(`New message${who ? ` from ${who.first_name}` : ''}`, newest.last_message);
+        navigator.vibrate?.(200);
+      }
+    }
+    prevUnread.current = unreadTotal;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unreadTotal, seen]);
+
+  useEffect(() => {
+    const original = document.title;
+    if (unreadTotal > 0) document.title = `(${unreadTotal}) ${original.replace(/^\(\d+\)\s*/, '')}`;
+    return () => {
+      document.title = original;
+    };
+  }, [unreadTotal]);
 
   const closeBoardModal = () => {
     setBoardMode(null);
@@ -206,6 +305,16 @@ export function MyTripPage() {
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
+  const startTripMutation = useMutation({
+    mutationFn: (rideId: string) => ridesApi.startTrip(rideId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rides', 'mine'] });
+      toast.success('Ride started');
+      setStartTripOpen(false);
+    },
+    onError: (e) => toast.error('Failed', getErrorMessage(e)),
+  });
+
   const endTripMutation = useMutation({
     mutationFn: (rideId: string) => ridesApi.endTrip(rideId),
     onSuccess: () => {
@@ -246,10 +355,16 @@ export function MyTripPage() {
   const activePassengers = passengers.filter((p) => p.status !== 'cancelled');
   const boardedCount = activePassengers.filter((p) => p.is_on_board).length;
   const canBoard = !!activeRide && isOpen(activeRide);
+  const canStart = activeRide?.status === 'scheduled' || activeRide?.status === 'boarding';
   const canEnd = activeRide?.status === 'active' || activeRide?.status === 'boarding';
-  const visiblePassengers = passengers.filter((p) =>
-    filter === 'all' ? true : filter === 'boarded' ? p.is_on_board : !p.is_on_board && p.status !== 'cancelled',
-  );
+  const visiblePassengers = passengers
+    .filter((p) =>
+      filter === 'all' ? true : filter === 'boarded' ? p.is_on_board : !p.is_on_board && p.status !== 'cancelled',
+    )
+    .sort((a, b) => (unreadByUser[b.user_id] ?? 0) - (unreadByUser[a.user_id] ?? 0));
+  const newestUnread = passengers
+    .filter((p) => unreadByUser[p.user_id])
+    .sort((a, b) => (threadByUser.get(b.user_id)?.last_at ?? '').localeCompare(threadByUser.get(a.user_id)?.last_at ?? ''))[0];
   const pendingCount = activePassengers.length - boardedCount;
   const routeName =
     activeRide?.route?.location?.name && activeRide.route.destination?.name
@@ -323,34 +438,61 @@ export function MyTripPage() {
               </div>
             </div>
 
-            {(canBoard || canEnd) && (
-              <div className="flex flex-col sm:flex-row gap-2">
+            {unreadTotal > 0 && newestUnread && (
+              <button
+                onClick={() => setChatTarget(newestUnread)}
+                className="w-full flex items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm text-blue-900"
+              >
+                <span className="flex items-center gap-2 font-medium">
+                  <MessageCircle className="w-4 h-4" />
+                  {unreadTotal} new message{unreadTotal > 1 ? 's' : ''}
+                </span>
+                <span className="text-blue-700 font-medium">Open</span>
+              </button>
+            )}
+
+            {isOpen(activeRide) ? (
+              <div className="space-y-2">
                 {canBoard && (
                   <Button
                     size="lg"
                     icon={<QrCode className="w-4 h-4" />}
-                    className="w-full sm:w-auto justify-center"
+                    className="w-full justify-center"
                     onClick={() => setBoardMode({ kind: 'scan' })}
                   >
                     Scan ticket to board
                   </Button>
                 )}
-                {canEnd && (
+                <div className="grid grid-cols-2 gap-2">
                   <Button
                     size="lg"
-                    variant="outline"
-                    className="w-full sm:w-auto justify-center"
+                    variant={canStart ? 'primary' : 'outline'}
+                    icon={<Play className="w-4 h-4" />}
+                    className="justify-center"
+                    disabled={!canStart}
+                    onClick={() => setStartTripOpen(true)}
+                  >
+                    Start Ride
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant={canEnd ? 'danger' : 'outline'}
+                    icon={<Square className="w-4 h-4" />}
+                    className="justify-center"
+                    disabled={!canEnd}
                     onClick={() => setEndTripOpen(true)}
                   >
-                    End Trip
+                    End Ride
                   </Button>
-                )}
+                </div>
+                <p className="text-xs text-gray-500">
+                  {activeRide.status === 'active'
+                    ? 'Ride in progress — end it when you reach the destination.'
+                    : 'Start the ride when the bus departs. Boarding the first passenger also starts it.'}
+                </p>
               </div>
-            )}
-            {activeRide.status === 'scheduled' && (
-              <p className="text-xs text-gray-500">
-                The trip starts automatically when you board the first passenger.
-              </p>
+            ) : (
+              <p className="text-sm text-gray-500">This ride has {activeRide.status === 'completed' ? 'ended' : 'been cancelled'}.</p>
             )}
           </div>
         )}
@@ -404,6 +546,12 @@ export function MyTripPage() {
                           <Phone className="w-3.5 h-3.5" /> {p.phone}
                         </a>
                       )}
+                      {threadByUser.get(p.user_id) && (
+                        <p className={cn('text-xs truncate mt-1', unreadByUser[p.user_id] ? 'text-blue-700 font-medium' : 'text-gray-500')}>
+                          {threadByUser.get(p.user_id)!.last_sender_type === 'marshal' ? 'You: ' : ''}
+                          {threadByUser.get(p.user_id)!.last_message}
+                        </p>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <Badge variant={p.is_on_board ? 'success' : 'gray'}>{p.is_on_board ? 'On Board' : 'Not Boarded'}</Badge>
@@ -429,6 +577,11 @@ export function MyTripPage() {
                       onClick={() => setChatTarget(p)}
                     >
                       Chat
+                      {unreadByUser[p.user_id] > 0 && (
+                        <span className="ml-0.5 rounded-full bg-red-600 text-white text-xs leading-none px-1.5 py-1">
+                          {unreadByUser[p.user_id]}
+                        </span>
+                      )}
                     </Button>
                     {p.status !== 'cancelled' && (
                       <Button
@@ -521,15 +674,27 @@ export function MyTripPage() {
         confirmLabel="Cancel Booking"
       />
 
+      {/* Start ride confirm */}
+      <ConfirmDialog
+        open={startTripOpen}
+        onClose={() => setStartTripOpen(false)}
+        onConfirm={() => activeRide && startTripMutation.mutate(activeRide.id)}
+        loading={startTripMutation.isPending}
+        title="Start this ride?"
+        message={`Mark the ride as under way. ${boardedCount} of ${activePassengers.length} passengers have boarded so far; you can keep boarding after it starts.`}
+        confirmLabel="Start Ride"
+        confirmVariant="primary"
+      />
+
       {/* End trip confirm — completing a ride is one-way */}
       <ConfirmDialog
         open={endTripOpen}
         onClose={() => setEndTripOpen(false)}
         onConfirm={() => activeRide && endTripMutation.mutate(activeRide.id)}
         loading={endTripMutation.isPending}
-        title="End this trip?"
+        title="End this ride?"
         message={`Passengers who boarded (${boardedCount}) will be marked completed. This can't be undone.`}
-        confirmLabel="End Trip"
+        confirmLabel="End Ride"
       />
 
       {/* Chat */}

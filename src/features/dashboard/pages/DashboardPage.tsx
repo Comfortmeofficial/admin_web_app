@@ -79,6 +79,13 @@ export function DashboardPage() {
                 iconBg="bg-primary-100"
               />
               <StatsCard
+                label="Total Registered Users"
+                value={formatNumber(stats?.registered_users ?? 0)}
+                icon={<Users className="w-5 h-5 text-teal-600" />}
+                iconBg="bg-teal-100"
+                sub={RANGE_OPTIONS.find((o) => o.value === range)?.label}
+              />
+              <StatsCard
                 label="Total Drivers"
                 value={formatNumber(stats?.total_drivers ?? 0)}
                 icon={<Car className="w-5 h-5 text-blue-600" />}

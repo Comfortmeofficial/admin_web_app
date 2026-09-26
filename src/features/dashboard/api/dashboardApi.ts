@@ -57,11 +57,13 @@ export const dashboardApi = {
       ]);
 
     const since = sinceFor(range);
-    const users = filterSince(
-      safeArray<{ created_at: string }>(usersRes as PromiseSettledResult<{ data: unknown }>),
-      since,
-      (u) => u.created_at,
-    );
+    // Total Users is every user in the system, never scoped to `range` —
+    // registeredUsers below is the range-scoped count (new signups in the
+    // selected period). These used to be conflated into one "total_users"
+    // value that silently meant "signups in range" whenever a range other
+    // than All Time was picked.
+    const allUsers = safeArray<{ created_at: string }>(usersRes as PromiseSettledResult<{ data: unknown }>);
+    const registeredUsers = filterSince(allUsers, since, (u) => u.created_at);
     const drivers = filterSince(
       safeArray<{ created_at: string }>(driversRes as PromiseSettledResult<{ data: unknown }>),
       since,
@@ -98,7 +100,8 @@ export const dashboardApi = {
     const pendingRentals = safeRentals(rentalsRes as PromiseSettledResult<{ data: unknown }>);
 
     return {
-      total_users: users.length,
+      total_users: allUsers.length,
+      registered_users: registeredUsers.length,
       total_drivers: drivers.length,
       total_buses: buses.length,
       total_marshals: marshals.length,

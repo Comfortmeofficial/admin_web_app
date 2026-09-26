@@ -739,6 +739,9 @@ export interface SupportTicket {
 
 export interface DashboardStats {
   total_users: number;
+  // Users who registered within the dashboard's selected date range —
+  // distinct from total_users, which is always every user regardless of it.
+  registered_users: number;
   total_drivers: number;
   total_buses: number;
   total_marshals: number;

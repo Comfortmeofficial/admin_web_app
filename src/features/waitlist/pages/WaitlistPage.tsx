@@ -30,6 +30,7 @@ export function WaitlistPage() {
     queryKey: ['waitlist', page],
     queryFn: () => waitlistApi.list({ skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE }),
     placeholderData: (prev) => prev,
+    refetchInterval: 30_000,
   });
 
   const createMutation = useMutation({

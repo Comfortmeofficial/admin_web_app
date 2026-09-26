@@ -79,18 +79,21 @@ export function DriverHomePage() {
     queryKey: ['driver-portal-ride', rideId],
     queryFn: () => driverPortalApi.getRide(rideId!),
     enabled: !!rideId,
+    refetchInterval: 30_000,
   });
 
   const { data: rideCode, isFetching: isLoadingCode } = useQuery({
     queryKey: ['driver-portal-ride-code', rideId],
     queryFn: () => driverPortalApi.getRideCode(rideId!),
     enabled: !!rideId && showCode,
+    refetchInterval: 30_000,
   });
 
   const { data: packages = [] } = useQuery({
     queryKey: ['driver-portal-packages', rideId],
     queryFn: () => driverPortalApi.getRidePackages(rideId!),
     enabled: !!rideId,
+    refetchInterval: 30_000,
   });
 
   const pendingPackages = packages.filter((p) => p.status === 'pending_pickup' || p.status === 'in_transit');

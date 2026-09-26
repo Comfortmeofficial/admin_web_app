@@ -27,6 +27,7 @@ export function BookingDetailPage() {
     queryKey: ['booking', id],
     queryFn: () => bookingsApi.get(id!),
     enabled: !!id,
+    refetchInterval: 30_000,
   });
 
   const cancelMutation = useMutation({

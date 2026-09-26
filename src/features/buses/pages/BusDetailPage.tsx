@@ -53,12 +53,14 @@ export function BusDetailPage() {
     queryKey: ['bus', id],
     queryFn: () => busesApi.get(id!),
     enabled: !!id,
+    refetchInterval: 30_000,
   });
 
   const { data: documents = [], isLoading: documentsLoading } = useQuery({
     queryKey: ['bus-documents', id],
     queryFn: () => busesApi.listDocuments(id!),
     enabled: !!id && tab === 'documents',
+    refetchInterval: 30_000,
   });
 
   const { data: availableDrivers = [] } = useQuery({
@@ -85,6 +87,7 @@ export function BusDetailPage() {
     queryKey: ['bus-driver', bus?.driver_id],
     queryFn: () => driversApi.get(bus!.driver_id!),
     enabled: !!bus?.driver_id,
+    refetchInterval: 30_000,
   });
 
   const assignDriverMutation = useMutation({

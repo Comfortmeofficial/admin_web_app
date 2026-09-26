@@ -37,12 +37,14 @@ export function DriverDetailPage() {
     queryKey: ['driver', id],
     queryFn: () => driversApi.get(id!),
     enabled: !!id,
+    refetchInterval: 30_000,
   });
 
   const { data: trips = [], isLoading: tripsLoading } = useQuery({
     queryKey: ['driver-trips', id],
     queryFn: () => driversApi.getTrips(id!),
     enabled: !!id && (tab === 'trips' || tab === 'performance'),
+    refetchInterval: 30_000,
   });
 
   const updateMutation = useMutation({

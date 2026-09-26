@@ -33,7 +33,7 @@ export function SchedulesPage() {
   const [editing, setEditing] = useState<RideSchedule | null>(null);
   const [deleteItem, setDeleteItem] = useState<RideSchedule | null>(null);
 
-  const { data: schedules = [], isLoading } = useQuery({ queryKey: ['ride-schedules'], queryFn: schedulesApi.list });
+  const { data: schedules = [], isLoading } = useQuery({ queryKey: ['ride-schedules'], queryFn: schedulesApi.list , refetchInterval: 30_000});
 
   // Opportunistic generation trigger — makes recurring rides work even if
   // no cron job is configured on the deploy target, since admins visiting

@@ -48,6 +48,7 @@ export function ReferralsPage() {
       const { data } = await rewardClient.get('/api/v1/referrals/milestones');
       return data as ReferralMilestone[];
     },
+    refetchInterval: 30_000,
   });
 
   const createMilestoneMutation = useMutation({
@@ -110,6 +111,7 @@ export function ReferralsPage() {
       const { data } = await rewardClient.get('/api/v1/referrals/');
       return data as ReferralCode[];
     },
+    refetchInterval: 30_000,
   });
 
   const createMutation = useMutation({

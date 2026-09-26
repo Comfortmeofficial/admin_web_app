@@ -26,9 +26,9 @@ export function ReportsPage() {
   const [endDate, setEndDate] = useState('');
   const [downloading, setDownloading] = useState<string | null>(null);
 
-  const { data: users = [] } = useQuery({ queryKey: ['users-report'], queryFn: () => usersApi.list({ skip: 0, limit: 1000 }) });
-  const { data: drivers = [] } = useQuery({ queryKey: ['drivers-report'], queryFn: () => driversApi.list({ skip: 0, limit: 1000 }) });
-  const { data: bookings = [] } = useQuery({ queryKey: ['bookings-report'], queryFn: () => bookingsApi.list({ skip: 0, limit: 1000 }) });
+  const { data: users = [] } = useQuery({ queryKey: ['users-report'], queryFn: () => usersApi.list({ skip: 0, limit: 1000 }) , refetchInterval: 30_000});
+  const { data: drivers = [] } = useQuery({ queryKey: ['drivers-report'], queryFn: () => driversApi.list({ skip: 0, limit: 1000 }) , refetchInterval: 30_000});
+  const { data: bookings = [] } = useQuery({ queryKey: ['bookings-report'], queryFn: () => bookingsApi.list({ skip: 0, limit: 1000 }) , refetchInterval: 30_000});
 
   const REPORT_TYPES: ReportType[] = [
     {

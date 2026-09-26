@@ -30,11 +30,13 @@ export function BusesPage() {
   const { data: buses = [], isLoading } = useQuery({
     queryKey: ['buses'],
     queryFn: busesApi.list,
+    refetchInterval: 30_000,
   });
 
   const { data: marshals = [] } = useQuery({
     queryKey: ['admins', 'marshals'],
     queryFn: () => adminsApi.listMarshals(),
+    refetchInterval: 30_000,
   });
 
   const createMutation = useMutation({

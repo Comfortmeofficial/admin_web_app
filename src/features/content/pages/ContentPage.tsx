@@ -34,6 +34,7 @@ export function ContentPage() {
       const { data } = await termsClient.get('/api/v1/terms/');
       return data as TermsAndConditions[];
     },
+    refetchInterval: 30_000,
   });
 
   const createMutation = useMutation({

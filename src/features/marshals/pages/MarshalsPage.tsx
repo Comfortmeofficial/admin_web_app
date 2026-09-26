@@ -43,6 +43,7 @@ export function MarshalsPage() {
   const { data: marshals = [], isLoading } = useQuery({
     queryKey: ['admins', 'marshals'],
     queryFn: () => adminsApi.listMarshals(),
+    refetchInterval: 30_000,
   });
 
   const { data: buses = [] } = useQuery({

@@ -42,6 +42,7 @@ export function DriversPage() {
     queryKey: ['drivers', page],
     queryFn: () => driversApi.list({ skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE }),
     placeholderData: (prev) => prev,
+    refetchInterval: 30_000,
   });
 
   const { data: buses = [] } = useQuery({

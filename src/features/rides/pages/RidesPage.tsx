@@ -50,6 +50,7 @@ export function RidesPage() {
       status: statusTab === 'all' ? undefined : statusTab,
     }),
     placeholderData: (prev) => prev,
+    refetchInterval: 30_000,
   });
 
   const createMutation = useMutation({

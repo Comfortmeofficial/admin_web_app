@@ -42,6 +42,7 @@ export function MarshalDetailPage() {
     queryKey: ['marshal', id],
     queryFn: () => adminsApi.getMarshal(id!),
     enabled: !!id,
+    refetchInterval: 30_000,
   });
 
   const { data: buses = [] } = useQuery({
@@ -53,6 +54,7 @@ export function MarshalDetailPage() {
     queryKey: ['marshal-trips', id],
     queryFn: () => adminsApi.getTrips(id!),
     enabled: !!id && (tab === 'trips' || tab === 'performance'),
+    refetchInterval: 30_000,
   });
 
   const updateMutation = useMutation({

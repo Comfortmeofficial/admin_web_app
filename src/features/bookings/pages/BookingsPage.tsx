@@ -43,6 +43,7 @@ export function BookingsPage() {
         status: statusTab === 'all' ? undefined : (statusTab as Booking['status']),
       }),
     placeholderData: (prev) => prev,
+    refetchInterval: 30_000,
   });
 
   const cancelMutation = useMutation({

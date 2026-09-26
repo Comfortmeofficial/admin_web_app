@@ -28,24 +28,28 @@ export function UserDetailPage() {
     queryKey: ['user', id],
     queryFn: () => usersApi.get(id!),
     enabled: !!id,
+    refetchInterval: 30_000,
   });
 
   const { data: bookings = [] } = useQuery({
     queryKey: ['user-bookings', id],
     queryFn: () => usersApi.getBookings(id!),
     enabled: !!id && tab === 'bookings',
+    refetchInterval: 30_000,
   });
 
   const { data: wallet } = useQuery({
     queryKey: ['user-wallet', id],
     queryFn: () => usersApi.getWallet(id!),
     enabled: !!id && tab === 'wallet',
+    refetchInterval: 30_000,
   });
 
   const { data: transactions = [] } = useQuery({
     queryKey: ['user-transactions', id],
     queryFn: () => usersApi.getWalletTransactions(id!),
     enabled: !!id && tab === 'wallet',
+    refetchInterval: 30_000,
   });
 
   if (isLoading) return <PageSpinner />;

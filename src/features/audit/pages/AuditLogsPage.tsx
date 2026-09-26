@@ -38,6 +38,7 @@ export function AuditLogsPage() {
       }
     },
     placeholderData: (prev) => prev,
+    refetchInterval: 30_000,
   });
 
   const filtered = logs.filter((l) =>

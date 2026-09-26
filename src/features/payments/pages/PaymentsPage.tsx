@@ -70,6 +70,7 @@ export function PaymentsPage() {
       to: to || undefined,
     }),
     placeholderData: (prev) => prev,
+    refetchInterval: 30_000,
   });
 
   const filtered = payments.filter((p) =>

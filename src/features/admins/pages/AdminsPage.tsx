@@ -37,6 +37,7 @@ export function AdminsPage() {
   const { data: admins = [], isLoading } = useQuery({
     queryKey: ['admins'],
     queryFn: () => adminsApi.list({ skip: 0, limit: 100 }),
+    refetchInterval: 30_000,
   });
 
   const createMutation = useMutation({

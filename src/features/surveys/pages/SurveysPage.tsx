@@ -38,7 +38,7 @@ function QuestionManager() {
   const [questionType, setQuestionType] = useState<SurveyQuestion['question_type']>('text');
   const [optionsText, setOptionsText] = useState('');
   const [editing, setEditing] = useState<SurveyQuestion | null>(null);
-  const { data: questions = [], isLoading } = useQuery({ queryKey: ['survey-questions'], queryFn: surveysApi.listQuestions });
+  const { data: questions = [], isLoading } = useQuery({ queryKey: ['survey-questions'], queryFn: surveysApi.listQuestions , refetchInterval: 30_000});
   const saveMutation = useMutation({
     mutationFn: () => editing
       ? surveysApi.updateQuestion(editing.id, { question, question_type: questionType, options: optionsText.split('\n').map((item) => item.trim()).filter(Boolean), sort_order: editing.sort_order, is_active: editing.is_active })
@@ -88,8 +88,8 @@ function QuestionManager() {
 
 function ResponseViewer() {
   const [rideId, setRideId] = useState('');
-  const { data: questions = [] } = useQuery({ queryKey: ['survey-questions'], queryFn: surveysApi.listQuestions });
-  const { data: responses = [], isLoading } = useQuery({ queryKey: ['survey-responses', rideId], queryFn: () => surveysApi.listResponses(rideId) });
+  const { data: questions = [] } = useQuery({ queryKey: ['survey-questions'], queryFn: surveysApi.listQuestions , refetchInterval: 30_000});
+  const { data: responses = [], isLoading } = useQuery({ queryKey: ['survey-responses', rideId], queryFn: () => surveysApi.listResponses(rideId) , refetchInterval: 30_000});
   const questionLabels = new Map(questions.map((question) => [String(question.id), question.question]));
   return (
     <Card>

@@ -32,7 +32,7 @@ export function LocationsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [deleteItem, setDeleteItem] = useState<Location | null>(null);
 
-  const { data: locations = [], isLoading } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations });
+  const { data: locations = [], isLoading } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations , refetchInterval: 30_000});
 
   const createMutation = useMutation({
     mutationFn: routesApi.createLocation,

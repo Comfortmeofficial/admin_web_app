@@ -25,6 +25,7 @@ export function PackagesPage() {
   const { data: packages = [], isLoading } = useQuery({
     queryKey: ['packages'],
     queryFn: () => packagesApi.list({ limit: 100 }),
+    refetchInterval: 30_000,
   });
 
   const filtered = packages.filter((p) => {

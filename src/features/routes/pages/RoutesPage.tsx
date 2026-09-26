@@ -53,7 +53,7 @@ export function RoutesPage() {
   const [route, setRoute] = useState<CreateRoutePayload>(emptyRouteDraft());
 
   const { data: locations = [] } = useQuery({ queryKey: ['locations'], queryFn: routesApi.listLocations });
-  const { data: routes = [], isLoading } = useQuery({ queryKey: ['routes'], queryFn: () => routesApi.list() });
+  const { data: routes = [], isLoading } = useQuery({ queryKey: ['routes'], queryFn: () => routesApi.list() , refetchInterval: 30_000});
 
   useEffect(() => {
     if (editing) setRoute(routeToDraft(editing, locations));

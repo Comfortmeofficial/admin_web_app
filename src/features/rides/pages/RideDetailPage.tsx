@@ -43,12 +43,14 @@ export function RideDetailPage() {
     queryKey: ['ride', id],
     queryFn: () => ridesApi.get(id!),
     enabled: !!id,
+    refetchInterval: 30_000,
   });
 
   const { data: bookings = [], isLoading: bookingsLoading } = useQuery({
     queryKey: ['bookings', { ride_id: id }],
     queryFn: () => bookingsApi.list({ ride_id: id } as Parameters<typeof bookingsApi.list>[0]),
     enabled: !!id,
+    refetchInterval: 30_000,
   });
 
   const { data: allDrivers = [] } = useQuery({

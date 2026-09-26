@@ -29,6 +29,7 @@ export function UsersPage() {
     queryKey: ['users', page],
     queryFn: () => usersApi.list({ skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE }),
     placeholderData: (prev) => prev,
+    refetchInterval: 30_000,
   });
 
   const toggleMutation = useMutation({

@@ -57,6 +57,7 @@ export function WalletTransactionsPage() {
       }
     },
     placeholderData: (prev) => prev,
+    refetchInterval: 30_000,
   });
 
   const filtered = transactions.filter((t) => {

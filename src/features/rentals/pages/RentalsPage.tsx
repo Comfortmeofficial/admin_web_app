@@ -72,6 +72,7 @@ export function RentalsPage() {
   const { data: rentals = [], isLoading } = useQuery({
     queryKey: ['rentals'],
     queryFn: () => rentalsApi.list(),
+    refetchInterval: 30_000,
   });
 
   const mutate = useMutation({

@@ -71,7 +71,10 @@ export function TripDetailPage() {
     queryFn: () => ridesApi.mine(),
     refetchInterval: 30_000,
   });
-  const activeRide = rides?.find((r) => r.id === rideId) ?? null;
+  // Ride.id is typed as string here, but the API actually sends it as a
+  // number — comparing directly to the string route param always failed,
+  // so every trip page showed "Trip not found" no matter what was clicked.
+  const activeRide = rides?.find((r) => String(r.id) === rideId) ?? null;
 
   const { data: passengers = [], isLoading: passengersLoading } = useQuery({
     queryKey: ['ride-passengers', rideId],

@@ -10,8 +10,16 @@ import { formatTime, slugToLabel } from '@/lib/utils';
 import { DAY_MS, startOfToday } from '../marshalInbox';
 import type { Ride } from '@/types';
 
+// Local calendar date, not UTC — toISOString() rolls back to the previous
+// day for anyone east of UTC (e.g. WAT, UTC+1), which made the date field
+// permanently show yesterday and made picking a new date look like it did
+// nothing.
 function dateKey(ms: number) {
-  return new Date(ms).toISOString().slice(0, 10);
+  const d = new Date(ms);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function dayLabel(dayStart: number) {

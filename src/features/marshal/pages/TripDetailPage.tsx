@@ -27,9 +27,15 @@ import { Input, Textarea } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
-import { cn, formatDateTime, getErrorMessage, slugToLabel } from '@/lib/utils';
+import { cn, formatDateTime, formatTime, getErrorMessage, slugToLabel } from '@/lib/utils';
 import type { Passenger, Ride, TripIssueCategory } from '@/types';
 import { isOpen, useChatInbox } from '../marshalInbox';
+
+// How early before departure a marshal can start boarding/the trip — status
+// alone ('scheduled') doesn't distinguish a trip departing in 10 minutes
+// from one three months out, so without this every future trip's Start/End
+// buttons were live the moment it was assigned.
+const EARLY_ACTION_WINDOW_MS = 30 * 60 * 1000;
 
 // The rider's app shows a QR encoding "CMBOOKING:{booking_id}:{reference}"
 // (see BookingQRModal in customer_mobile_app) — independent of the ride's
@@ -299,8 +305,14 @@ export function TripDetailPage() {
 
   const activePassengers = passengers.filter((p) => p.status !== 'cancelled');
   const boardedCount = activePassengers.filter((p) => p.is_on_board).length;
-  const canBoard = isOpen(activeRide);
-  const canStart = activeRide.status === 'scheduled' || activeRide.status === 'boarding';
+  const departureMs = new Date(activeRide.departure_time).getTime();
+  const actionsUnlockAt = departureMs - EARLY_ACTION_WINDOW_MS;
+  // Once a trip is actually active/boarding, ending it is never time-gated —
+  // that status only exists because a real boarding or start already
+  // happened, which the window above already guarded.
+  const actionsUnlocked = Date.now() >= actionsUnlockAt || activeRide.status === 'active' || activeRide.status === 'boarding';
+  const canBoard = isOpen(activeRide) && actionsUnlocked;
+  const canStart = actionsUnlocked && (activeRide.status === 'scheduled' || activeRide.status === 'boarding');
   const canEnd = activeRide.status === 'active' || activeRide.status === 'boarding';
   const visiblePassengers = passengers
     .filter((p) =>
@@ -402,7 +414,9 @@ export function TripDetailPage() {
               <p className="text-xs text-gray-500">
                 {activeRide.status === 'active'
                   ? 'Ride in progress — end it when you reach the destination.'
-                  : 'Start the ride when the bus departs. Boarding the first passenger also starts it.'}
+                  : actionsUnlocked
+                    ? 'Start the ride when the bus departs. Boarding the first passenger also starts it.'
+                    : `Boarding and Start Ride open at ${formatTime(new Date(actionsUnlockAt).toISOString())}, 30 minutes before departure.`}
               </p>
             </div>
           ) : (

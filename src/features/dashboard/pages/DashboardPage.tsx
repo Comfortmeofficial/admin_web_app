@@ -26,16 +26,21 @@ const RANGE_OPTIONS: { label: string; value: DateRangeFilter }[] = [
 export function DashboardPage() {
   const [range, setRange] = useState<DateRangeFilter>('month');
 
+  // The app's global query defaults turn off refetch-on-window-focus and set
+  // no refetchInterval, so without one here this data loaded once per visit
+  // and then just sat there — nothing brought it back to check for updates.
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['dashboard-stats', range],
     queryFn: () => dashboardApi.getStats(range),
     staleTime: 60_000,
+    refetchInterval: 30_000,
   });
 
   const { data: chartData } = useQuery({
     queryKey: ['dashboard-chart', range],
     queryFn: () => dashboardApi.getRevenueChart(range),
     staleTime: 60_000,
+    refetchInterval: 30_000,
   });
 
   return (

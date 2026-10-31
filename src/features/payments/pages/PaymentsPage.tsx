@@ -15,13 +15,14 @@ import { PAGE_SIZE } from '@/lib/constants';
 import { Download, CheckCircle2, Clock, XCircle, Wallet } from 'lucide-react';
 import type { Payment, PaymentMethod, PaymentPurpose, PaymentStatus } from '@/types';
 
-// The Paystack ledger — distinct from the Wallet Transactions page
-// (features/wallet-transactions), which is each wallet's own internal
-// movement. A row here is money that actually went through Paystack; paying
-// a booking/package/rental *from* an already-funded wallet has no row here,
-// and neither does a refund — refunds only ever credit a wallet, they never
-// reverse anything through Paystack, so they live in Wallet Transactions
-// only. See types/index.ts for the full reasoning.
+// The gateway ledger (Paystack or Flutterwave) — distinct from the Wallet
+// Transactions page (features/wallet-transactions), which is each wallet's
+// own internal movement. A row here is money that actually went through
+// one of the two gateways; paying a booking/package/rental *from* an
+// already-funded wallet has no row here, and neither does a refund —
+// refunds only ever credit a wallet, they never reverse anything through
+// the gateway, so they live in Wallet Transactions only. See
+// types/index.ts for the full reasoning.
 const STATUS_VARIANTS: Record<PaymentStatus, BadgeVariant> = {
   pending: 'warning',
   successful: 'success',
@@ -90,6 +91,7 @@ export function PaymentsPage() {
     { key: 'amount', header: 'Amount', cell: (r) => <span className="font-medium text-gray-900">{formatCurrency(r.amount)}</span> },
     { key: 'purpose', header: 'Purpose', cell: (r) => slugToLabel(r.purpose) },
     { key: 'method', header: 'Method', cell: (r) => slugToLabel(r.payment_method) },
+    { key: 'gateway', header: 'Gateway', cell: (r) => slugToLabel(r.gateway) },
     {
       key: 'booking', header: 'Booking',
       cell: (r) => r.booking_id ? <span className="font-mono text-xs">#{r.booking_id}</span> : <span className="text-gray-400">—</span>,
@@ -104,7 +106,7 @@ export function PaymentsPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Payments" subtitle="Money that moved through Paystack, with its live outcome" />
+      <Header title="Payments" subtitle="Money that moved through Paystack or Flutterwave, with its live outcome" />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {/* Stats */}

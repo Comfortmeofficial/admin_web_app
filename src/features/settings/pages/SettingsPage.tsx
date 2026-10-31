@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, CreditCard, Bell, Gift, FileText, Shield } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
@@ -11,6 +12,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { authApi } from '@/features/auth/api/authApi';
+import { settingsApi, type PaymentGateway } from '@/features/settings/api/settingsApi';
 import { getErrorMessage } from '@/lib/utils';
 
 const TABS = [
@@ -77,35 +79,76 @@ function CompanySettings() {
 }
 
 function PaymentSettings() {
-  const { register, handleSubmit } = useForm({
+  const { register, handleSubmit, reset, watch } = useForm({
     defaultValues: {
-      provider: 'paystack',
+      provider: 'paystack' as PaymentGateway,
       public_key: '',
       cancellation_fee_percent: '0',
       refund_window_hours: '24',
     },
   });
   const toast = useToast();
+  const queryClient = useQueryClient();
+
+  // The only field on this tab backed by a real setting — the gateway that
+  // processes new card/bank-transfer payments platform-wide. The rest
+  // (public_key, cancellation_fee_percent, refund_window_hours) remain the
+  // pre-existing mock they already were.
+  const { data: gatewaySetting } = useQuery({
+    queryKey: ['payment-gateway'],
+    queryFn: settingsApi.getPaymentGateway,
+  });
+
+  useEffect(() => {
+    if (gatewaySetting) reset((prev) => ({ ...prev, provider: gatewaySetting.active_gateway }));
+  }, [gatewaySetting, reset]);
+
+  const setGatewayMutation = useMutation({
+    mutationFn: settingsApi.setPaymentGateway,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['payment-gateway'] }),
+  });
+
+  const onSubmit = handleSubmit(async (values) => {
+    if (values.provider !== gatewaySetting?.active_gateway) {
+      try {
+        await setGatewayMutation.mutateAsync(values.provider);
+      } catch (e) {
+        toast.error('Failed to update payment gateway', getErrorMessage(e));
+        return;
+      }
+    }
+    toast.success('Payment settings saved');
+  });
+
   return (
     <Card>
       <div className="flex items-center gap-3 mb-6">
         <CreditCard className="w-5 h-5 text-green-600" />
         <h3 className="font-semibold text-gray-900">Payment Settings</h3>
       </div>
-      <form onSubmit={handleSubmit(() => toast.success('Payment settings saved'))} className="space-y-4">
+      <form onSubmit={onSubmit} className="space-y-4">
         <Select
           label="Payment Provider"
-          options={[{ value: 'paystack', label: 'Paystack' }]}
+          options={[
+            { value: 'paystack', label: 'Paystack' },
+            { value: 'flutterwave', label: 'Flutterwave' },
+          ]}
           {...register('provider')}
-          hint="Additional providers can be added via the adapter pattern"
+          hint="Processes every new card/bank-transfer payment platform-wide until changed again"
         />
+        {watch('provider') !== 'paystack' && (
+          <p className="text-xs text-amber-600">
+            Saved cards keep charging through whichever gateway originally added them — this only
+            affects new checkouts.
+          </p>
+        )}
         <Input label="Public Key" {...register('public_key')} placeholder="pk_live_..." />
         <div className="grid grid-cols-2 gap-4">
           <Input label="Cancellation Fee (%)" type="number" min={0} max={100} {...register('cancellation_fee_percent')} />
           <Input label="Refund Window (hours)" type="number" {...register('refund_window_hours')} />
         </div>
         <div className="flex justify-end">
-          <Button type="submit">Save Payment Settings</Button>
+          <Button type="submit" loading={setGatewayMutation.isPending}>Save Payment Settings</Button>
         </div>
       </form>
     </Card>

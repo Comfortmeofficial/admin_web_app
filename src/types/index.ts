@@ -518,12 +518,13 @@ export interface WalletTransaction {
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
 //
-// The Paystack ledger — distinct from WalletTransaction above, which is the
-// wallet's own internal movement (deposits, trip-fare deductions, referral
-// credits, refunds). A payment here is money that actually went through
-// Paystack; paying a booking/package/rental *from* an already-funded wallet
+// The gateway ledger (Paystack or Flutterwave, see `gateway` below) —
+// distinct from WalletTransaction above, which is the wallet's own internal
+// movement (deposits, trip-fare deductions, referral credits, refunds). A
+// payment here is money that actually went through one of the two
+// gateways; paying a booking/package/rental *from* an already-funded wallet
 // has no row here, and neither does a refund — a refund only ever credits a
-// wallet, it never reverses anything through Paystack, so it stays
+// wallet, it never reverses anything through the gateway, so it stays
 // wallet-ledger-only. See payments/types.ts on the backend for the full
 // reasoning (that table briefly tracked refunds too; reverted).
 
@@ -541,6 +542,7 @@ export interface Payment {
   currency: string;
   purpose: PaymentPurpose;
   payment_method: PaymentMethod;
+  gateway: 'paystack' | 'flutterwave';
   status: PaymentStatus;
   booking_id: string | null;
   failure_reason: string | null;

@@ -44,7 +44,8 @@ export function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
-export function slugToLabel(slug: string): string {
+export function slugToLabel(slug: string | null | undefined): string {
+  if (!slug) return '—';
   return slug.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 

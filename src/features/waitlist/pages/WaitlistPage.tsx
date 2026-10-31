@@ -26,12 +26,14 @@ export function WaitlistPage() {
   const [editing, setEditing] = useState<WaitlistEntry | null>(null);
   const [deleteItem, setDeleteItem] = useState<WaitlistEntry | null>(null);
 
-  const { data: entries = [], isLoading } = useQuery({
+  const { data: result, isLoading } = useQuery({
     queryKey: ['waitlist', page],
     queryFn: () => waitlistApi.list({ skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE }),
     placeholderData: (prev) => prev,
     refetchInterval: 30_000,
   });
+  const entries = result?.data ?? [];
+  const total = result?.total ?? 0;
 
   const createMutation = useMutation({
     mutationFn: waitlistApi.create,
@@ -107,7 +109,7 @@ export function WaitlistPage() {
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          <StatsCard label="On This Page" value={entries.length} icon={<UserPlus className="w-5 h-5 text-blue-600" />} iconBg="bg-blue-100" />
+          <StatsCard label="Total On Waitlist" value={total} icon={<UserPlus className="w-5 h-5 text-blue-600" />} iconBg="bg-blue-100" />
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -123,7 +125,7 @@ export function WaitlistPage() {
           <Table columns={columns} data={filtered} loading={isLoading} rowKey={(r) => r.id} emptyMessage="No one has joined the waitlist yet" />
 
           <div className="px-5 py-4 border-t border-gray-100">
-            <Pagination page={page} pageSize={PAGE_SIZE} total={entries.length >= PAGE_SIZE ? page * PAGE_SIZE + 1 : (page - 1) * PAGE_SIZE + entries.length} onChange={setPage} />
+            <Pagination page={page} pageSize={PAGE_SIZE} total={total} onChange={setPage} />
           </div>
         </div>
       </div>

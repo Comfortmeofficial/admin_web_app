@@ -4,7 +4,7 @@ import type { WaitlistEntry, WaitlistEntryPayload } from '@/types';
 export const waitlistApi = {
   list: async (params: { skip?: number; limit?: number } = {}) => {
     const { data } = await authClient.get('/api/v1/auth/waitlist', { params });
-    return data as WaitlistEntry[];
+    return data as { data: WaitlistEntry[]; total: number };
   },
   get: async (id: string) => {
     const { data } = await authClient.get(`/api/v1/auth/waitlist/${id}`);

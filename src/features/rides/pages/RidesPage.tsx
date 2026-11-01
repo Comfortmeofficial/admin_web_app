@@ -89,9 +89,15 @@ export function RidesPage() {
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
-  const filtered = rides.filter((r) =>
-    `${r.id} ${r.driver_name ?? ''} ${r.bus_plate ?? ''} ${r.route?.name ?? ''}`.toLowerCase().includes(search.toLowerCase())
-  );
+  // The backend orders this list by departure_time (soonest first) - the
+  // right order for the mobile app's own trip browsing, which shares this
+  // same endpoint, but not for an admin reviewing what's been created most
+  // recently. Re-sorted here rather than changing the shared backend order.
+  const filtered = rides
+    .filter((r) =>
+      `${r.id} ${r.driver_name ?? ''} ${r.bus_plate ?? ''} ${r.route?.name ?? ''}`.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const columns: Column<Ride>[] = [
     {

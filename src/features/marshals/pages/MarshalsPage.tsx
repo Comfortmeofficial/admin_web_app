@@ -91,12 +91,18 @@ export function MarshalsPage() {
     onError: (e) => toast.error('Failed to force logout', getErrorMessage(e)),
   });
 
-  const filtered = marshals.filter((m) => {
-    const matchesSearch = `${m.first_name} ${m.last_name} ${m.email}`
-      .toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusTab === 'all' || marshalTripStatus(m) === statusTab;
-    return matchesSearch && matchesStatus;
-  });
+  // listMarshals orders alphabetically on the backend - the right order for
+  // the assignment dropdowns that share this same endpoint, but not for an
+  // admin reviewing who's been added most recently. Re-sorted here rather
+  // than changing the shared backend order.
+  const filtered = marshals
+    .filter((m) => {
+      const matchesSearch = `${m.first_name} ${m.last_name} ${m.email}`
+        .toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusTab === 'all' || marshalTripStatus(m) === statusTab;
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const handleAction = () => {
     if (!confirm) return;

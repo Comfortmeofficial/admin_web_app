@@ -163,7 +163,7 @@ export function SchedulesPage() {
         onClose={() => setDeleteItem(null)}
         onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
         loading={deleteMutation.isPending}
-        message={`Delete this schedule (${deleteItem?.route_name ?? 'route'}, ${deleteItem?.departure_time_of_day ?? ''})? Rides already generated from it are unaffected — this only stops future generation.`}
+        message={`Delete this schedule (${deleteItem?.route_name ?? 'route'}, ${deleteItem?.departure_time_of_day ?? ''})? This also removes its upcoming rides that nobody has booked yet. Any ride that already has a booking is left as-is for you to handle individually.`}
       />
     </div>
   );

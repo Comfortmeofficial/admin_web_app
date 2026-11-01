@@ -219,7 +219,7 @@ export function RoutesPage() {
         onClose={() => setDeleteItem(null)}
         onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
         loading={deleteMutation.isPending}
-        message={`Delete route "${deleteItem?.name}"? Schedules and rides that already reference it are unaffected.`}
+        message={`Delete route "${deleteItem?.name}"? This also removes its upcoming rides that nobody has booked yet, and deactivates any schedule still generating rides for it. If it still has a ride with an existing booking, or one currently boarding/active, the delete will be blocked until that's handled.`}
       />
     </div>
   );

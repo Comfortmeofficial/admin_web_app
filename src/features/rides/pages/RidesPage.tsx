@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, MoreVertical, Eye, MapPin } from 'lucide-react';
+import { Plus, MoreVertical, Eye, MapPin, Eraser } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { ridesApi } from '../api/ridesApi';
 import { routesApi } from '@/features/routes/api/routesApi';
@@ -18,6 +18,7 @@ import { Select } from '@/components/ui/Select';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Tabs } from '@/components/ui/Tabs';
 import { Pagination } from '@/components/ui/Pagination';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import { formatDateTime, formatCurrency, getErrorMessage, slugToLabel } from '@/lib/utils';
 import { PAGE_SIZE } from '@/lib/constants';
@@ -41,6 +42,7 @@ export function RidesPage() {
   const [statusTab, setStatusTab] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
   const [actionMenu, setActionMenu] = useState<string | null>(null);
+  const [showCancelStale, setShowCancelStale] = useState(false);
 
   const { data: rides = [], isLoading } = useQuery({
     queryKey: ['rides', page, statusTab],
@@ -62,6 +64,28 @@ export function RidesPage() {
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: RideStatus }) => ridesApi.updateStatus(id, status),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['rides'] }); toast.success('Ride status updated'); },
+    onError: (e) => toast.error('Failed', getErrorMessage(e)),
+  });
+
+  const cancelStaleMutation = useMutation({
+    mutationFn: ridesApi.cancelStale,
+    onSuccess: (summary) => {
+      qc.invalidateQueries({ queryKey: ['rides'] });
+      setShowCancelStale(false);
+      if (summary.rides_cancelled === 0) {
+        toast.success('Nothing to clean up', 'No stale rides were found.');
+        return;
+      }
+      toast.success(
+        `${summary.rides_cancelled} stale ride(s) cancelled`,
+        summary.bookings_refunded > 0
+          ? `${summary.bookings_refunded} passenger(s) refunded ${formatCurrency(summary.total_refunded)} total${summary.errors.length ? ` — ${summary.errors.length} error(s), see console` : ''}`
+          : summary.errors.length
+            ? `${summary.errors.length} error(s), see console`
+            : undefined,
+      );
+      if (summary.errors.length) console.error('[cancel-stale] errors:', summary.errors);
+    },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
@@ -133,6 +157,9 @@ export function RidesPage() {
             <h2 className="font-semibold text-gray-900">All Rides</h2>
             <div className="flex items-center gap-3">
               <SearchInput value={search} onChange={setSearch} placeholder="Search rides…" className="w-48" />
+              <Button variant="outline" icon={<Eraser className="w-4 h-4" />} onClick={() => setShowCancelStale(true)}>
+                Clean Up Stale Rides
+              </Button>
               <Button icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreate(true)}>Create Ride</Button>
             </div>
           </div>
@@ -150,6 +177,15 @@ export function RidesPage() {
       </div>
 
       <RideForm open={showCreate} onClose={() => setShowCreate(false)} onSubmit={(p) => createMutation.mutate(p)} loading={createMutation.isPending} />
+
+      <ConfirmDialog
+        open={showCancelStale}
+        onClose={() => setShowCancelStale(false)}
+        onConfirm={() => cancelStaleMutation.mutate()}
+        loading={cancelStaleMutation.isPending}
+        message="Cancel every ride whose departure time has already passed but is still marked Scheduled (nobody ever marked it boarding, active, completed, or cancelled)? Any passenger still booked on one of these gets a full refund to their wallet, no cancellation fee — there's no way to tell from the data whether the trip actually ran, so this treats it as the platform's fault, not theirs."
+        confirmLabel="Clean Up"
+      />
     </div>
   );
 }

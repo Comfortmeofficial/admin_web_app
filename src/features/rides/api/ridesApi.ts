@@ -91,4 +91,18 @@ export const ridesApi = {
     const { data } = await bookingClient.post(`/api/v1/rides/${rideId}/issues`, input);
     return data as TripIssue;
   },
+
+  // Cleans up rides whose departure time passed with nobody ever
+  // advancing their status past 'scheduled' - cancels each one and fully
+  // refunds anyone still booked, since there's no way to tell whether the
+  // trip actually happened. Safe to run again later.
+  cancelStale: async () => {
+    const { data } = await bookingClient.post('/api/v1/rides/cancel-stale');
+    return data as {
+      rides_cancelled: number;
+      bookings_refunded: number;
+      total_refunded: number;
+      errors: string[];
+    };
+  },
 };

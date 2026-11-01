@@ -55,19 +55,33 @@ export function DriverDetailPage() {
 
   const suspendMutation = useMutation({
     mutationFn: () => driversApi.suspend(id!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['driver', id] }); toast.success('Driver suspended'); setConfirm(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['driver', id] });
+      qc.invalidateQueries({ queryKey: ['drivers'] });
+      toast.success('Driver suspended');
+      setConfirm(null);
+    },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
   const reinstateMutation = useMutation({
     mutationFn: () => driversApi.reinstate(id!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['driver', id] }); toast.success('Driver reinstated'); setConfirm(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['driver', id] });
+      qc.invalidateQueries({ queryKey: ['drivers'] });
+      toast.success('Driver reinstated');
+      setConfirm(null);
+    },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => driversApi.delete(id!),
-    onSuccess: () => { toast.success('Driver deleted'); navigate('/drivers'); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['drivers'] });
+      toast.success('Driver deleted');
+      navigate('/drivers');
+    },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 

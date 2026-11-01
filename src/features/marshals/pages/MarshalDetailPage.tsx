@@ -65,19 +65,33 @@ export function MarshalDetailPage() {
 
   const suspendMutation = useMutation({
     mutationFn: () => adminsApi.suspend(id!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['marshal', id] }); toast.success('Marshal suspended'); setConfirm(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['marshal', id] });
+      qc.invalidateQueries({ queryKey: ['admins', 'marshals'] });
+      toast.success('Marshal suspended');
+      setConfirm(null);
+    },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
   const reinstateMutation = useMutation({
     mutationFn: () => adminsApi.activate(id!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['marshal', id] }); toast.success('Marshal reinstated'); setConfirm(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['marshal', id] });
+      qc.invalidateQueries({ queryKey: ['admins', 'marshals'] });
+      toast.success('Marshal reinstated');
+      setConfirm(null);
+    },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => adminsApi.delete(id!),
-    onSuccess: () => { toast.success('Marshal deleted'); navigate('/marshals'); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admins', 'marshals'] });
+      toast.success('Marshal deleted');
+      navigate('/marshals');
+    },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 

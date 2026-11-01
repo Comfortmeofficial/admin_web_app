@@ -20,6 +20,7 @@ export function BookingDetailPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const [showCancel, setShowCancel] = useState(false);
+  const [showCancelWithRefund, setShowCancelWithRefund] = useState(false);
   const [showBoard, setShowBoard] = useState(false);
   const [boardCode, setBoardCode] = useState('');
 
@@ -33,6 +34,16 @@ export function BookingDetailPage() {
   const cancelMutation = useMutation({
     mutationFn: () => bookingsApi.cancel(id!),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['booking', id] }); toast.success('Booking cancelled'); setShowCancel(false); },
+    onError: (e) => toast.error('Failed', getErrorMessage(e)),
+  });
+
+  const cancelWithRefundMutation = useMutation({
+    mutationFn: () => bookingsApi.cancelWithRefund(id!),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ['booking', id] });
+      toast.success('Booking cancelled', `${formatCurrency(result.refund_amount)} refunded to their wallet`);
+      setShowCancelWithRefund(false);
+    },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
@@ -74,9 +85,14 @@ export function BookingDetailPage() {
               </Button>
             )}
             {booking.status !== 'cancelled' && booking.status !== 'refunded' && (
-              <Button variant="danger" size="sm" icon={<XCircle className="w-4 h-4" />} onClick={() => setShowCancel(true)}>
-                Cancel Booking
-              </Button>
+              <>
+                <Button variant="outline" size="sm" icon={<XCircle className="w-4 h-4" />} onClick={() => setShowCancelWithRefund(true)}>
+                  Cancel &amp; Refund
+                </Button>
+                <Button variant="danger" size="sm" icon={<XCircle className="w-4 h-4" />} onClick={() => setShowCancel(true)}>
+                  Cancel Booking
+                </Button>
+              </>
             )}
           </div>
         </Card>
@@ -133,8 +149,17 @@ export function BookingDetailPage() {
         onClose={() => setShowCancel(false)}
         onConfirm={() => cancelMutation.mutate()}
         loading={cancelMutation.isPending}
-        message="Cancel this booking? The passenger may be eligible for a refund."
+        message="Cancel this booking? No refund is issued — only use this when one genuinely isn't warranted (a no-show, fraud, correcting a mistake). For cancelling a valid booking through no fault of the passenger's, use Cancel & Refund instead."
         confirmLabel="Cancel Booking"
+      />
+
+      <ConfirmDialog
+        open={showCancelWithRefund}
+        onClose={() => setShowCancelWithRefund(false)}
+        onConfirm={() => cancelWithRefundMutation.mutate()}
+        loading={cancelWithRefundMutation.isPending}
+        message="Cancel this booking and refund the full amount to the passenger's wallet, no cancellation fee? Use this when it's the platform cancelling a valid trip (its route or schedule was removed, say), not the passenger's choice."
+        confirmLabel="Cancel & Refund"
       />
 
       <Modal

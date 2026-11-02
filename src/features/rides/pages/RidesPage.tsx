@@ -142,6 +142,9 @@ export function RidesPage() {
               {row.status === 'boarding' && (
                 <button onClick={() => { statusMutation.mutate({ id: row.id, status: 'active' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full">Start Ride</button>
               )}
+              {row.status === 'active' && (
+                <button onClick={() => { statusMutation.mutate({ id: row.id, status: 'completed' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full">Complete Ride</button>
+              )}
               {row.status === 'scheduled' && (
                 <button onClick={() => { statusMutation.mutate({ id: row.id, status: 'cancelled' }); setActionMenu(null); }} className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-full">Cancel Ride</button>
               )}

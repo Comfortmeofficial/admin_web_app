@@ -2,8 +2,13 @@ import { bookingClient } from '@/lib/api';
 import type { ChatMessage, ChatThread, Passenger, Ride, CreateRidePayload, RideStatus, TripIssue, TripIssueCategory } from '@/types';
 
 export const ridesApi = {
+  // sort: 'created_desc' — the backend defaults to departure_time ASC
+  // (right for the mobile app's own trip browsing, which shares this same
+  // endpoint); the admin dashboard's management table wants newest-created
+  // first instead, which only the backend can paginate correctly (a
+  // client-side re-sort can't fix rows that never made it into the page).
   list: async (params: { skip?: number; limit?: number; status?: string } = {}) => {
-    const { data } = await bookingClient.get('/api/v1/rides', { params });
+    const { data } = await bookingClient.get('/api/v1/rides', { params: { ...params, sort: 'created_desc' } });
     return data as Ride[];
   },
 

@@ -4,8 +4,10 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import QrScanner from 'qr-scanner';
 import {
   AlertTriangle,
+  Check,
   CheckCircle,
   ChevronLeft,
+  MapPin,
   MessageCircle,
   Phone,
   Play,
@@ -281,6 +283,13 @@ export function TripDetailPage() {
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 
+  const passedStopMutation = useMutation({
+    mutationFn: ({ stopId, passed }: { stopId: number | null; passed: boolean }) =>
+      ridesApi.setPassedStop(rideId!, stopId, passed),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rides', 'mine'] }),
+    onError: (e) => toast.error('Failed', getErrorMessage(e)),
+  });
+
   if (ridesLoading) return <PageSpinner />;
 
   if (!activeRide) {
@@ -422,6 +431,56 @@ export function TripDetailPage() {
           ) : (
             <p className="text-sm text-gray-500">This ride has {activeRide.status === 'completed' ? 'ended' : 'been cancelled'}.</p>
           )}
+        </div>
+
+        {/* Pickup Points */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-gray-400" />
+            <h3 className="font-semibold text-gray-900">Pickup Points</h3>
+          </div>
+          <p className="text-xs text-gray-500">
+            Tick off a point once the bus has passed it — it stops being offered to new bookings.
+          </p>
+          <div className="space-y-1.5">
+            {[
+              {
+                stopId: null as number | null,
+                name: `${activeRide.route?.location?.name ?? 'Default'} (Start)`,
+                passed: !!activeRide.origin_passed,
+              },
+              ...(activeRide.route?.stops ?? [])
+                .slice()
+                .sort((a, b) => a.stop_order - b.stop_order)
+                .map((s) => ({ stopId: Number(s.stop.id), name: s.stop.name, passed: !!s.passed })),
+            ].map((point) => {
+              const isPending =
+                passedStopMutation.isPending && passedStopMutation.variables?.stopId === point.stopId;
+              return (
+                <button
+                  key={point.stopId ?? 'origin'}
+                  disabled={isPending || activeRide.status === 'completed' || activeRide.status === 'cancelled'}
+                  onClick={() => passedStopMutation.mutate({ stopId: point.stopId, passed: !point.passed })}
+                  className={cn(
+                    'w-full flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm text-left disabled:opacity-60',
+                    point.passed ? 'border-gray-200 bg-gray-50' : 'border-gray-200',
+                  )}
+                >
+                  <span className={cn(point.passed ? 'text-gray-400 line-through' : 'text-gray-900')}>
+                    {point.name}
+                  </span>
+                  <span
+                    className={cn(
+                      'w-5 h-5 rounded-full border flex items-center justify-center shrink-0',
+                      point.passed ? 'bg-green-500 border-green-500' : 'border-gray-300',
+                    )}
+                  >
+                    {point.passed && <Check className="w-3 h-3 text-white" />}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Issues */}

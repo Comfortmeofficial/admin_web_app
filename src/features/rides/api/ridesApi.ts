@@ -67,6 +67,12 @@ export const ridesApi = {
     return data as ChatThread[];
   },
 
+  // stopId null means the route's own starting point ("Default" pickup).
+  setPassedStop: async (rideId: string, stopId: number | null, passed: boolean) => {
+    const { data } = await bookingClient.patch(`/api/v1/rides/${rideId}/stops/passed`, { stop_id: stopId, passed });
+    return data as Ride;
+  },
+
   endTrip: async (rideId: string) => {
     const { data } = await bookingClient.post(`/api/v1/rides/${rideId}/end-trip`);
     return data as Ride;

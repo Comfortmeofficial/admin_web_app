@@ -277,6 +277,8 @@ export interface RouteStop {
   stop_order: number;
   fare: number | null;
   stop: Location;
+  // Ride-specific: set only on a ride's own nested route.stops.
+  passed?: boolean;
 }
 
 export type RouteStatus = 'active' | 'inactive';
@@ -346,6 +348,10 @@ export interface Ride {
   schedule_id?: number | null;
   route?: Route;
   stop_fares: StopFare[];
+  passed_stop_ids?: number[];
+  // Whether the route's own starting point ("Default" pickup) has been
+  // ticked off as passed by the marshal on this ride.
+  origin_passed?: boolean;
   created_at: string;
   updated_at: string;
 }

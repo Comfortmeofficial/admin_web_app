@@ -48,7 +48,7 @@ export function LocationsPage() {
 
   const filtered = locations
     .filter((l) => l.name.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const columns: Column<Location>[] = [
     {

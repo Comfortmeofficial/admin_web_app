@@ -57,6 +57,13 @@ export function MarshalDetailPage() {
     refetchInterval: 30_000,
   });
 
+  // getTrips reuses the backend's /rides/mine query (ASC by departure_time,
+  // correct for a marshal's own upcoming shift) — re-sorted here, newest
+  // first, since this is a historical view, not an active shift list.
+  const sortedTrips = [...trips].sort(
+    (a, b) => new Date(b.departure_time).getTime() - new Date(a.departure_time).getTime(),
+  );
+
   const updateMutation = useMutation({
     mutationFn: (payload: Parameters<typeof adminsApi.update>[1]) => adminsApi.update(id!, payload),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['marshal', id] }); toast.success('Marshal updated'); setShowEdit(false); },
@@ -257,7 +264,7 @@ export function MarshalDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {trips.map((trip) => (
+                    {sortedTrips.map((trip) => (
                       <tr key={trip.id} className="border-b border-gray-50 last:border-0">
                         <td className="py-2 pr-4 text-gray-900">{formatDateTime(trip.departure_time)}</td>
                         <td className="py-2 pr-4 text-gray-600">{trip.route?.name ?? '—'}</td>

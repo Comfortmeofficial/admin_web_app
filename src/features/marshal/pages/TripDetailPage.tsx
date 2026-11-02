@@ -27,7 +27,7 @@ import { Input, Textarea } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
-import { cn, formatDateTime, formatTime, getErrorMessage, slugToLabel } from '@/lib/utils';
+import { cn, formatDateTime, formatTime, getErrorMessage, slugToLabel, stopName } from '@/lib/utils';
 import type { Passenger, Ride, TripIssueCategory } from '@/types';
 import { isOpen, useChatInbox } from '../marshalInbox';
 
@@ -485,6 +485,11 @@ export function TripDetailPage() {
                       <p className="text-sm text-gray-500">
                         Seat {p.seat_number}
                         {p.phone && <span className="text-gray-400"> · {p.phone}</span>}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Pickup: {stopName(activeRide.route?.stops, p.pickup_stop_id) ?? activeRide.route?.location?.name ?? 'Default'}
+                        {' · '}
+                        Drop-off: {stopName(activeRide.route?.stops, p.dropoff_stop_id) ?? activeRide.route?.destination?.name ?? 'Final'}
                       </p>
                       {threadByUser.get(p.user_id) && (
                         <p className={cn('text-xs truncate mt-1', unreadByUser[p.user_id] ? 'text-blue-700 font-medium' : 'text-gray-500')}>

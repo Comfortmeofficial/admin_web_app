@@ -10,7 +10,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { useToast } from '@/components/ui/Toast';
-import { formatDateTime, formatCurrency, getErrorMessage, slugToLabel } from '@/lib/utils';
+import { formatDateTime, formatCurrency, getErrorMessage, slugToLabel, stopName } from '@/lib/utils';
 import { Card } from '@/components/ui/Tabs';
 import { useState } from 'react';
 
@@ -106,6 +106,8 @@ export function BookingDetailPage() {
                 ['Seat Number', booking.seat_number],
                 ['Status', <Badge key="s" variant={statusBadge(booking.status)} dot>{slugToLabel(booking.status)}</Badge>],
                 ['On Board', <Badge key="ob" variant={booking.is_on_board ? 'success' : 'gray'}>{booking.is_on_board ? 'Yes' : 'No'}</Badge>],
+                ['Pickup Location', stopName(booking.ride?.route?.stops, booking.pickup_stop_id) ?? booking.ride?.route?.location?.name ?? 'Default'],
+                ['Drop-off Location', stopName(booking.ride?.route?.stops, booking.dropoff_stop_id) ?? booking.ride?.route?.destination?.name ?? 'Final Destination'],
                 ['Booking Date', formatDateTime(booking.created_at)],
                 ['User ID', booking.user_id],
                 ['Ride ID', booking.ride_id],

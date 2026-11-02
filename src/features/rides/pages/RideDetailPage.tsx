@@ -16,7 +16,7 @@ import { Select } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/Toast';
 import { Card } from '@/components/ui/Tabs';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { formatDateTime, formatCurrency, getErrorMessage, slugToLabel } from '@/lib/utils';
+import { formatDateTime, formatCurrency, getErrorMessage, slugToLabel, stopName } from '@/lib/utils';
 import type { Admin, Booking, Driver, RideStatus } from '@/types';
 
 const STATUS_ACTIONS: { from: RideStatus; to: RideStatus; label: string; variant: 'primary' | 'danger' | 'outline' }[] = [
@@ -117,6 +117,19 @@ export function RideDetailPage() {
     { key: 'seat', header: 'Seat', cell: (b) => b.seat_number },
     { key: 'amount', header: 'Amount', cell: (b) => formatCurrency(b.final_amount) },
     { key: 'method', header: 'Method', cell: (b) => <Badge variant="gray">{slugToLabel(b.payment_method)}</Badge> },
+    {
+      key: 'stops', header: 'Pickup / Drop-off',
+      cell: (b) => {
+        const pickup = stopName(ride.route?.stops, b.pickup_stop_id) ?? ride.route?.location?.name ?? 'Default';
+        const dropoff = stopName(ride.route?.stops, b.dropoff_stop_id) ?? ride.route?.destination?.name ?? 'Final';
+        return (
+          <div className="text-xs">
+            <div className="text-gray-700">{pickup}</div>
+            <div className="text-gray-400">→ {dropoff}</div>
+          </div>
+        );
+      },
+    },
     { key: 'status', header: 'Status', cell: (b) => <Badge variant={statusBadge(b.status)} dot>{slugToLabel(b.status)}</Badge> },
     { key: 'onboard', header: 'On Board', cell: (b) => <Badge variant={b.is_on_board ? 'success' : 'gray'}>{b.is_on_board ? 'Yes' : 'No'}</Badge> },
     { key: 'booked', header: 'Booked At', cell: (b) => formatDateTime(b.created_at) },

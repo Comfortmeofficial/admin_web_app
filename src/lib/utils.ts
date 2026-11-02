@@ -1,7 +1,19 @@
 import { format, parseISO } from 'date-fns';
+import type { RouteStop } from '@/types';
 
 export function cn(...classes: (string | undefined | false | null)[]): string {
   return classes.filter(Boolean).join(' ');
+}
+
+// Resolves a booking's pickup_stop_id/dropoff_stop_id (a plain number) back
+// to a human-readable stop name, against a ride's route.stops (whose own
+// ids come back as strings) — null for "not set" (the route's default
+// pickup location, or riding to the final destination) as much as for
+// "stop not found".
+export function stopName(stops: RouteStop[] | undefined, stopId: number | string | null | undefined): string | null {
+  if (stopId == null) return null;
+  const stop = stops?.find((s) => String(s.stop.id) === String(stopId));
+  return stop?.stop.name ?? null;
 }
 
 export function formatDate(dateStr: string, fmt = 'MMM d, yyyy'): string {

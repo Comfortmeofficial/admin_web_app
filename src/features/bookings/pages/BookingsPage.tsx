@@ -12,7 +12,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import { Pagination } from '@/components/ui/Pagination';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
-import { formatDateTime, formatCurrency, getErrorMessage, slugToLabel, exportToCsv } from '@/lib/utils';
+import { formatDateTime, formatCurrency, getErrorMessage, slugToLabel, exportToCsv, stopName } from '@/lib/utils';
 import { PAGE_SIZE } from '@/lib/constants';
 import type { Booking } from '@/types';
 
@@ -68,6 +68,20 @@ export function BookingsPage() {
       cell: (r) => <Badge variant={statusBadge(r.status)} dot>{slugToLabel(r.status)}</Badge>,
     },
     { key: 'onboard', header: 'On Board', cell: (r) => <Badge variant={r.is_on_board ? 'success' : 'gray'}>{r.is_on_board ? 'Yes' : 'No'}</Badge> },
+    {
+      key: 'stops', header: 'Pickup / Drop-off',
+      cell: (r) => {
+        const stops = r.ride?.route?.stops;
+        const pickup = stopName(stops, r.pickup_stop_id) ?? r.ride?.route?.location?.name ?? 'Default';
+        const dropoff = stopName(stops, r.dropoff_stop_id) ?? r.ride?.route?.destination?.name ?? 'Final';
+        return (
+          <div className="text-xs">
+            <div className="text-gray-700">{pickup}</div>
+            <div className="text-gray-400">→ {dropoff}</div>
+          </div>
+        );
+      },
+    },
     { key: 'date', header: 'Date', cell: (r) => formatDateTime(r.created_at) },
     {
       key: 'actions',

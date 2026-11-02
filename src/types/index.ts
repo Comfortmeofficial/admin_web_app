@@ -432,6 +432,12 @@ export interface Booking {
   payment_method: PaymentMethod;
   status: BookingStatus;
   is_on_board: boolean;
+  pickup_stop_id: number | null;
+  dropoff_stop_id: number | null;
+  // Present on the GET /api/v1/bookings/{id} and ride-scoped listing
+  // responses (the backend always nests it) - typed optional here since
+  // not every caller of this type necessarily fetched it that way.
+  ride?: Ride;
   created_at: string;
   updated_at: string;
 }
@@ -467,6 +473,7 @@ export interface Passenger {
   is_on_board: boolean;
   no_show_at: string | null;
   pickup_stop_id: number | null;
+  dropoff_stop_id: number | null;
   user_id: number;
   first_name: string;
   last_name: string;

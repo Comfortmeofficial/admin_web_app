@@ -114,6 +114,15 @@ export function RideDetailPage() {
 
   const bookingColumns: Column<Booking>[] = [
     { key: 'ref', header: 'Reference', cell: (b) => <span className="font-mono text-xs">{b.reference}</span> },
+    {
+      key: 'passenger', header: 'Passenger',
+      cell: (b) => b.user ? (
+        <div className="text-xs">
+          <div className="text-gray-700 font-medium">{b.user.first_name} {b.user.last_name}</div>
+          <div className="text-gray-400">{b.user.email}</div>
+        </div>
+      ) : <span className="text-gray-400 text-xs">Unknown</span>,
+    },
     { key: 'seat', header: 'Seat', cell: (b) => b.seat_number },
     { key: 'amount', header: 'Amount', cell: (b) => formatCurrency(b.final_amount) },
     { key: 'method', header: 'Method', cell: (b) => <Badge variant="gray">{slugToLabel(b.payment_method)}</Badge> },

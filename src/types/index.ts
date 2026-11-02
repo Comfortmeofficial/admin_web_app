@@ -438,6 +438,7 @@ export interface Booking {
   // responses (the backend always nests it) - typed optional here since
   // not every caller of this type necessarily fetched it that way.
   ride?: Ride;
+  user?: { first_name: string; last_name: string; email: string; phone: string | null } | null;
   created_at: string;
   updated_at: string;
 }

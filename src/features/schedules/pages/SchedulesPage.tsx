@@ -50,7 +50,15 @@ export function SchedulesPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: CreateRideSchedulePayload }) => schedulesApi.update(id, payload),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ride-schedules'] }); toast.success('Schedule updated'); setEditing(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ride-schedules'] });
+      // The backend also pushes this change onto every upcoming ride the
+      // schedule already generated (and notifies any booked passenger on
+      // one), so those need refreshing here too, not just the schedule list.
+      qc.invalidateQueries({ queryKey: ['rides'] });
+      toast.success('Schedule updated', 'Upcoming rides were updated to match, and any booked passenger affected has been notified.');
+      setEditing(null);
+    },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
 

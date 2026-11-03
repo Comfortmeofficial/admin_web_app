@@ -120,6 +120,7 @@ export function RideDetailPage() {
         <div className="text-xs">
           <div className="text-gray-700 font-medium">{b.user.first_name} {b.user.last_name}</div>
           <div className="text-gray-400">{b.user.email}</div>
+          {b.user.phone && <div className="text-gray-400">{b.user.phone}</div>}
         </div>
       ) : <span className="text-gray-400 text-xs">Unknown</span>,
     },

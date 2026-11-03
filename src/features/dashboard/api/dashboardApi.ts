@@ -1,4 +1,4 @@
-import { userClient, driverClient, busClient, bookingClient, walletClient, adminClient } from '@/lib/api';
+import { userClient, driverClient, busClient, bookingClient, adminClient } from '@/lib/api';
 import type { DashboardStats, DateRangeFilter, Ride, Booking, Rental, Marshal } from '@/types';
 
 const LARGE = 1000;
@@ -44,14 +44,13 @@ function filterSince<T>(items: T[], since: Date | null, getDate: (item: T) => st
 
 export const dashboardApi = {
   getStats: async (range: DateRangeFilter = 'month'): Promise<DashboardStats> => {
-    const [usersRes, driversRes, busesRes, ridesRes, bookingsRes, revenueRes, marshalsRes, rentalsRes] =
+    const [usersRes, driversRes, busesRes, ridesRes, bookingsRes, marshalsRes, rentalsRes] =
       await Promise.allSettled([
         userClient.get('/api/v1/users/', { params: { skip: 0, limit: LARGE } }),
         driverClient.get('/api/v1/drivers/', { params: { skip: 0, limit: LARGE } }),
         busClient.get('/api/v1/buses', { params: { limit: LARGE } }),
         bookingClient.get('/api/v1/rides', { params: { skip: 0, limit: LARGE } }),
         bookingClient.get('/api/v1/bookings/all', { params: { skip: 0, limit: LARGE } }),
-        walletClient.get('/api/v1/wallet/analytics', { params: { range } }),
         adminClient.get('/api/v1/admins/marshals'),
         bookingClient.get('/api/v1/rentals', { params: { skip: 0, limit: LARGE, status: 'pending' } }),
       ]);
@@ -86,13 +85,18 @@ export const dashboardApi = {
       since,
       (b) => b.created_at,
     );
-    // Sourced from wallet_service's actual successful transactions (same
-    // data the revenue chart uses), not ride fares — a ride only counts
-    // toward revenue once its status flips to "completed", which understates
-    // (often to zero) money already collected for active/scheduled rides.
-    // The endpoint is already scoped server-side to the same `range`.
-    const revenueBuckets = safeArray<{ revenue: number }>(revenueRes as PromiseSettledResult<{ data: unknown }>);
-    const revenue = revenueBuckets.reduce((sum, b) => sum + (b.revenue ?? 0), 0);
+    // Was sourced from wallet_service's transactions table instead — that
+    // only records wallet funding/wallet-paid fares, so a booking paid by
+    // card or bank transfer (most of them; see payments.payment_method)
+    // never appeared in it at all and this silently under-counted revenue,
+    // often down to ₦0 for a period with real, paid bookings in it. Summed
+    // directly from the same already-fetched, already range-scoped
+    // bookings instead — final_amount is what was actually charged,
+    // independent of payment method, and only a status that means "this
+    // money was actually kept" counts (not pending/cancelled/refunded).
+    const revenue = bookings
+      .filter((b) => b.status === 'confirmed' || b.status === 'completed')
+      .reduce((sum, b) => sum + (b.final_amount ?? 0), 0);
     const marshals = safeArray<Marshal>(marshalsRes as PromiseSettledResult<{ data: unknown }>);
     // Server-side filtered to status=pending already; not date-scoped by
     // `range` like the rest of this endpoint — a pending request stays
@@ -119,9 +123,11 @@ export const dashboardApi = {
     };
   },
 
+  // Bucketed from actual bookings (any payment method), not wallet
+  // transactions — same fix as getStats's revenue total, see its comment.
   getRevenueChart: async (range: string) => {
     try {
-      const { data } = await walletClient.get('/api/v1/wallet/analytics', { params: { range } });
+      const { data } = await bookingClient.get('/api/v1/bookings/revenue-analytics', { params: { range } });
       return data;
     } catch {
       return generateMockChartData(range);

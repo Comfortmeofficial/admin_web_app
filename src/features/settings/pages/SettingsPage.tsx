@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, CreditCard, Bell, Gift, FileText, Shield } from 'lucide-react';
+import { Building2, CreditCard, Bell, Gift, FileText, Shield, Trash2, Mail } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -166,32 +166,117 @@ function NotificationSettings() {
   });
   const toast = useToast();
   return (
-    <Card>
-      <div className="flex items-center gap-3 mb-6">
-        <Bell className="w-5 h-5 text-amber-600" />
-        <h3 className="font-semibold text-gray-900">Notification Settings</h3>
-      </div>
-      <form onSubmit={handleSubmit(() => toast.success('Notification settings saved'))} className="space-y-4">
-        <div className="space-y-3">
-          {[
-            { key: 'sms_enabled', label: 'SMS Notifications', hint: 'Send SMS via Twilio' },
-            { key: 'email_enabled', label: 'Email Notifications', hint: 'Send emails via Twilio SendGrid' },
-            { key: 'push_enabled', label: 'Push Notifications', hint: 'Send push via Firebase' },
-          ].map((setting) => (
-            <div key={setting.key} className="flex items-center justify-between py-3 border-b last:border-0 border-gray-100">
-              <div>
-                <p className="text-sm font-medium text-gray-900">{setting.label}</p>
-                <p className="text-xs text-gray-500">{setting.hint}</p>
+    <div className="space-y-4">
+      <Card>
+        <div className="flex items-center gap-3 mb-6">
+          <Bell className="w-5 h-5 text-amber-600" />
+          <h3 className="font-semibold text-gray-900">Notification Settings</h3>
+        </div>
+        <form onSubmit={handleSubmit(() => toast.success('Notification settings saved'))} className="space-y-4">
+          <div className="space-y-3">
+            {[
+              { key: 'sms_enabled', label: 'SMS Notifications', hint: 'Send SMS via Twilio' },
+              { key: 'email_enabled', label: 'Email Notifications', hint: 'Send emails via Twilio SendGrid' },
+              { key: 'push_enabled', label: 'Push Notifications', hint: 'Send push via Firebase' },
+            ].map((setting) => (
+              <div key={setting.key} className="flex items-center justify-between py-3 border-b last:border-0 border-gray-100">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{setting.label}</p>
+                  <p className="text-xs text-gray-500">{setting.hint}</p>
+                </div>
+                <input type="checkbox" {...register(setting.key as 'sms_enabled')} className="w-4 h-4 rounded text-primary-600" />
               </div>
-              <input type="checkbox" {...register(setting.key as 'sms_enabled')} className="w-4 h-4 rounded text-primary-600" />
+            ))}
+          </div>
+          <Input label="Ride Reminder (hours before departure)" type="number" {...register('booking_reminder_hours')} />
+          <div className="flex justify-end">
+            <Button type="submit">Save Notification Settings</Button>
+          </div>
+        </form>
+      </Card>
+
+      <BookingAlertEmailsSettings />
+    </div>
+  );
+}
+
+function BookingAlertEmailsSettings() {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const [newEmail, setNewEmail] = useState('');
+
+  const { data: alertEmails = [], isLoading } = useQuery({
+    queryKey: ['booking-alert-emails'],
+    queryFn: settingsApi.listBookingAlertEmails,
+  });
+
+  const addMutation = useMutation({
+    mutationFn: settingsApi.addBookingAlertEmail,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['booking-alert-emails'] });
+      setNewEmail('');
+      toast.success('Email added');
+    },
+    onError: (e) => toast.error('Failed to add email', getErrorMessage(e)),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: settingsApi.removeBookingAlertEmail,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['booking-alert-emails'] }); toast.success('Email removed'); },
+    onError: (e) => toast.error('Failed to remove email', getErrorMessage(e)),
+  });
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3 mb-2">
+        <Mail className="w-5 h-5 text-primary-600" />
+        <h3 className="font-semibold text-gray-900">Booking Alert Emails</h3>
+      </div>
+      <p className="text-sm text-gray-500 mb-4">
+        Every address below gets an email whenever a booking is made, so you can keep track of activity.
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const email = newEmail.trim();
+          if (email) addMutation.mutate(email);
+        }}
+        className="flex items-end gap-3 mb-4"
+      >
+        <div className="flex-1">
+          <Input
+            label="Add Email"
+            type="email"
+            required
+            placeholder="ops@comfortmeng.com"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+          />
+        </div>
+        <Button type="submit" loading={addMutation.isPending} disabled={!newEmail.trim()}>
+          Add
+        </Button>
+      </form>
+      {isLoading ? (
+        <p className="text-sm text-gray-500">Loading…</p>
+      ) : alertEmails.length === 0 ? (
+        <p className="text-sm text-gray-500">No alert emails configured yet.</p>
+      ) : (
+        <div className="divide-y divide-gray-100 border border-gray-100 rounded-lg">
+          {alertEmails.map((item) => (
+            <div key={item.id} className="flex items-center justify-between px-4 py-2.5">
+              <span className="text-sm text-gray-900">{item.email}</span>
+              <button
+                onClick={() => removeMutation.mutate(item.id)}
+                disabled={removeMutation.isPending}
+                className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           ))}
         </div>
-        <Input label="Ride Reminder (hours before departure)" type="number" {...register('booking_reminder_hours')} />
-        <div className="flex justify-end">
-          <Button type="submit">Save Notification Settings</Button>
-        </div>
-      </form>
+      )}
     </Card>
   );
 }

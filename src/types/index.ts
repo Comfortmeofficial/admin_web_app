@@ -438,6 +438,7 @@ export interface Booking {
   payment_method: PaymentMethod;
   status: BookingStatus;
   is_on_board: boolean;
+  no_show_at: string | null;
   pickup_stop_id: number | null;
   dropoff_stop_id: number | null;
   // Present on the GET /api/v1/bookings/{id} and ride-scoped listing

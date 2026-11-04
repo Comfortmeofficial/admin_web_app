@@ -112,6 +112,32 @@ export function RideDetailPage() {
   const actions = STATUS_ACTIONS.filter((a) => a.from === ride.status);
   const canEdit = !TERMINAL_STATUSES.includes(ride.status);
 
+  // Groups everyone still expected to get off somewhere (skips cancelled
+  // and no-show bookings — they're never actually on the bus) by their
+  // drop-off point, in route order, so ops can see at a glance which
+  // stops this ride actually needs to make instead of every one on the
+  // route. A stop already ticked off by the marshal in Pickup Points is
+  // the same physical point the bus has already passed, flagged the same
+  // way here — mirrors the marshal trip view's own Drop-off Stops card.
+  const onRouteStops = [...(ride.route?.stops ?? [])].sort((a, b) => a.stop_order - b.stop_order);
+  const dropoffGroups = (() => {
+    const toDrop = bookings.filter((b) => b.status !== 'cancelled' && !b.no_show_at);
+    const groups: { name: string; passed: boolean; bookings: Booking[] }[] = [];
+    for (const s of onRouteStops) {
+      const here = toDrop.filter((b) => String(b.dropoff_stop_id) === String(s.stop.id));
+      if (here.length > 0) groups.push({ name: s.stop.name, passed: !!s.passed, bookings: here });
+    }
+    const atFinal = toDrop.filter((b) => b.dropoff_stop_id == null);
+    if (atFinal.length > 0) {
+      groups.push({
+        name: `Final Destination (${ride.route?.destination?.name ?? '—'})`,
+        passed: false,
+        bookings: atFinal,
+      });
+    }
+    return groups;
+  })();
+
   const bookingColumns: Column<Booking>[] = [
     { key: 'ref', header: 'Reference', cell: (b) => <span className="font-mono text-xs">{b.reference}</span> },
     {
@@ -296,6 +322,42 @@ export function RideDetailPage() {
             </Card>
           </div>
         </div>
+
+        {/* Drop-off Stops */}
+        {dropoffGroups.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-gray-400" />
+              <h3 className="font-semibold text-gray-900">Drop-off Stops</h3>
+            </div>
+            <p className="text-xs text-gray-500">
+              Only needs to stop at a point below if someone's actually getting off there.
+            </p>
+            <div className="space-y-2">
+              {dropoffGroups.map((group) => (
+                <div
+                  key={group.name}
+                  className={`rounded-lg border px-3 py-2 ${group.passed ? 'border-gray-200 bg-gray-50' : 'border-gray-200'}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-sm font-medium ${group.passed ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                      {group.name}
+                    </span>
+                    <span className="text-xs text-gray-400 shrink-0">
+                      {group.bookings.length} passenger{group.bookings.length > 1 ? 's' : ''}
+                      {group.passed ? ' · already passed' : ''}
+                    </span>
+                  </div>
+                  <p className={`text-xs mt-0.5 ${group.passed ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {group.bookings
+                      .map((b) => (b.user ? `${b.user.first_name} ${b.user.last_name}` : 'Unknown passenger'))
+                      .join(', ')}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Bookings */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">

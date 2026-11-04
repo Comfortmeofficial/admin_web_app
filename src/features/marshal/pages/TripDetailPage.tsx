@@ -314,6 +314,30 @@ export function TripDetailPage() {
 
   const activePassengers = passengers.filter((p) => p.status !== 'cancelled');
   const boardedCount = activePassengers.filter((p) => p.is_on_board).length;
+  // Groups everyone still expected to get off somewhere (skips no-shows —
+  // they're never actually on the bus) by their drop-off point, in route
+  // order, so the marshal only stops where someone's actually getting off
+  // instead of every single stop on the route. A stop already ticked off
+  // in Pickup Points is the same physical point the bus has already
+  // passed, so its drop-off group is flagged the same way here.
+  const onRouteStops = [...(activeRide.route?.stops ?? [])].sort((a, b) => a.stop_order - b.stop_order);
+  const dropoffGroups = (() => {
+    const toDrop = activePassengers.filter((p) => !p.no_show_at);
+    const groups: { name: string; passed: boolean; passengers: Passenger[] }[] = [];
+    for (const s of onRouteStops) {
+      const here = toDrop.filter((p) => String(p.dropoff_stop_id) === String(s.stop.id));
+      if (here.length > 0) groups.push({ name: s.stop.name, passed: !!s.passed, passengers: here });
+    }
+    const atFinal = toDrop.filter((p) => p.dropoff_stop_id == null);
+    if (atFinal.length > 0) {
+      groups.push({
+        name: `Final Destination (${activeRide.route?.destination?.name ?? '—'})`,
+        passed: false,
+        passengers: atFinal,
+      });
+    }
+    return groups;
+  })();
   const departureMs = new Date(activeRide.departure_time).getTime();
   const actionsUnlockAt = departureMs - EARLY_ACTION_WINDOW_MS;
   // Once a trip is actually active/boarding, ending it is never time-gated —
@@ -482,6 +506,43 @@ export function TripDetailPage() {
             })}
           </div>
         </div>
+
+        {/* Drop-off Stops */}
+        {dropoffGroups.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-gray-400" />
+              <h3 className="font-semibold text-gray-900">Drop-off Stops</h3>
+            </div>
+            <p className="text-xs text-gray-500">
+              Only stop at a point below if someone's actually getting off there.
+            </p>
+            <div className="space-y-2">
+              {dropoffGroups.map((group) => (
+                <div
+                  key={group.name}
+                  className={cn(
+                    'rounded-lg border px-3 py-2',
+                    group.passed ? 'border-gray-200 bg-gray-50' : 'border-gray-200',
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={cn('text-sm font-medium', group.passed ? 'text-gray-400 line-through' : 'text-gray-900')}>
+                      {group.name}
+                    </span>
+                    <span className="text-xs text-gray-400 shrink-0">
+                      {group.passengers.length} passenger{group.passengers.length > 1 ? 's' : ''}
+                      {group.passed ? ' · already passed' : ''}
+                    </span>
+                  </div>
+                  <p className={cn('text-xs mt-0.5', group.passed ? 'text-gray-400' : 'text-gray-600')}>
+                    {group.passengers.map((p) => `${p.first_name} ${p.last_name}`).join(', ')}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Issues */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center justify-between gap-3">

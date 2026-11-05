@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/Button';
 import { Badge, statusBadge } from '@/components/ui/Badge';
 import { PageSpinner } from '@/components/ui/Spinner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Modal } from '@/components/ui/Modal';
-import { Input } from '@/components/ui/Input';
 import { useToast } from '@/components/ui/Toast';
 import { formatDateTime, formatCurrency, getErrorMessage, slugToLabel, stopName } from '@/lib/utils';
 import { Card } from '@/components/ui/Tabs';
@@ -22,7 +20,6 @@ export function BookingDetailPage() {
   const [showCancel, setShowCancel] = useState(false);
   const [showCancelWithRefund, setShowCancelWithRefund] = useState(false);
   const [showBoard, setShowBoard] = useState(false);
-  const [boardCode, setBoardCode] = useState('');
 
   const { data: booking, isLoading } = useQuery({
     queryKey: ['booking', id],
@@ -48,12 +45,11 @@ export function BookingDetailPage() {
   });
 
   const boardMutation = useMutation({
-    mutationFn: (code: string) => bookingsApi.board(id!, code),
+    mutationFn: () => bookingsApi.boardDirect(id!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['booking', id] });
       toast.success('Passenger boarded');
       setShowBoard(false);
-      setBoardCode('');
     },
     onError: (e) => toast.error('Failed', getErrorMessage(e)),
   });
@@ -164,31 +160,14 @@ export function BookingDetailPage() {
         confirmLabel="Cancel & Refund"
       />
 
-      <Modal
+      <ConfirmDialog
         open={showBoard}
-        onClose={() => { setShowBoard(false); setBoardCode(''); }}
-        title="Mark On Board"
-        size="sm"
-        footer={
-          <>
-            <Button variant="outline" onClick={() => { setShowBoard(false); setBoardCode(''); }}>Cancel</Button>
-            <Button
-              onClick={() => boardMutation.mutate(boardCode)}
-              loading={boardMutation.isPending}
-              disabled={!boardCode.trim()}
-            >
-              Confirm
-            </Button>
-          </>
-        }
-      >
-        <Input
-          label="Boarding Code"
-          placeholder="Code shown by the driver/marshal"
-          value={boardCode}
-          onChange={(e) => setBoardCode(e.target.value)}
-        />
-      </Modal>
+        onClose={() => setShowBoard(false)}
+        onConfirm={() => boardMutation.mutate()}
+        loading={boardMutation.isPending}
+        message={`Mark ${booking.reference} as on board? No QR scan or boarding code needed here — this directly marks the passenger as boarded.`}
+        confirmLabel="Mark On Board"
+      />
     </div>
   );
 }

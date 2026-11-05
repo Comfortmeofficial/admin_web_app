@@ -1,5 +1,5 @@
 import { bookingClient } from '@/lib/api';
-import type { ChatMessage, ChatThread, Passenger, Ride, CreateRidePayload, RideStatus, TripIssue, TripIssueCategory } from '@/types';
+import type { Passenger, Ride, CreateRidePayload, RideStatus, TripIssue, TripIssueCategory } from '@/types';
 
 export const ridesApi = {
   // sort: 'created_desc' — the backend defaults to departure_time ASC
@@ -62,11 +62,6 @@ export const ridesApi = {
     return data as Ride;
   },
 
-  getChatThreads: async (rideId: string) => {
-    const { data } = await bookingClient.get(`/api/v1/rides/${rideId}/chat`);
-    return data as ChatThread[];
-  },
-
   // stopId null means the route's own starting point ("Default" pickup).
   setPassedStop: async (rideId: string, stopId: number | null, passed: boolean) => {
     const { data } = await bookingClient.patch(`/api/v1/rides/${rideId}/stops/passed`, { stop_id: stopId, passed });
@@ -81,16 +76,6 @@ export const ridesApi = {
   getPassengers: async (rideId: string) => {
     const { data } = await bookingClient.get(`/api/v1/rides/${rideId}/passengers`);
     return data as Passenger[];
-  },
-
-  getChatMessages: async (rideId: string, userId: number) => {
-    const { data } = await bookingClient.get(`/api/v1/rides/${rideId}/chat/${userId}/messages`);
-    return data as ChatMessage[];
-  },
-
-  sendChatMessage: async (rideId: string, userId: number, message: string) => {
-    const { data } = await bookingClient.post(`/api/v1/rides/${rideId}/chat/${userId}/messages`, { message });
-    return data as ChatMessage;
   },
 
   getIssues: async (rideId: string) => {

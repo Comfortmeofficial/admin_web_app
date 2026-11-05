@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { ROLE_LABELS } from '@/lib/constants';
 import { useSidebar } from './SidebarContext';
-import { MarshalBell } from '@/features/marshal/MarshalBell';
 
 interface HeaderProps {
   title: string;
@@ -31,9 +30,7 @@ export function Header({ title, subtitle }: HeaderProps) {
         </div>
       </div>
       <div className="flex items-center gap-3 flex-shrink-0">
-        {admin?.role === 'bus_marshal' ? (
-          <MarshalBell />
-        ) : (
+        {admin?.role !== 'bus_marshal' && (
           <button
             onClick={() => navigate('/notifications')}
             className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors relative"

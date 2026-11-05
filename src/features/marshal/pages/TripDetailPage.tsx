@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import QrScanner from 'qr-scanner';
 import {
   AlertTriangle,
@@ -12,7 +12,6 @@ import {
   Phone,
   Play,
   QrCode,
-  Send,
   ShieldAlert,
   Square,
   UserX,
@@ -30,8 +29,8 @@ import { Select } from '@/components/ui/Select';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import { cn, formatDateTime, formatTime, getErrorMessage, slugToLabel, stopName } from '@/lib/utils';
-import type { Passenger, Ride, TripIssueCategory } from '@/types';
-import { isOpen, useChatInbox } from '../marshalInbox';
+import type { Passenger, TripIssueCategory } from '@/types';
+import { isOpen } from '../marshalInbox';
 
 // How early before departure a marshal can start boarding/the trip — status
 // alone ('scheduled') doesn't distinguish a trip departing in 10 minutes
@@ -51,6 +50,18 @@ function parseBookingQr(data: string): { bookingId: number; reference: string } 
   return { bookingId, reference: parts.slice(2).join(':') };
 }
 
+// wa.me needs the full international number as digits only, no leading
+// "+". Nigerian numbers are the overwhelming majority here and are often
+// stored in local format (a leading 0) rather than +234 — normalized the
+// same way a Nigerian number is commonly converted for a wa.me link.
+function whatsappHref(phone: string | null): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return null;
+  const international = digits.startsWith('0') ? `234${digits.slice(1)}` : digits;
+  return `https://wa.me/${international}`;
+}
+
 type BoardMode = 'scan';
 type PassengerFilter = 'pending' | 'boarded' | 'all';
 
@@ -65,7 +76,6 @@ export function TripDetailPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [cancelTarget, setCancelTarget] = useState<Passenger | null>(null);
   const [noShowTarget, setNoShowTarget] = useState<Passenger | null>(null);
-  const [chatTarget, setChatTarget] = useState<Passenger | null>(null);
   const [endTripOpen, setEndTripOpen] = useState(false);
   const [startTripOpen, setStartTripOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -99,63 +109,6 @@ export function TripDetailPage() {
   // through this instead of a stale closure.
   const passengersRef = useRef<Passenger[]>([]);
   passengersRef.current = passengers;
-
-  const { threads, loaded: threadsLoaded, unreadByUser, unreadTotal, markSeen } = useChatInbox(rideId ?? null);
-  const threadByUser = new Map(threads.map((t) => [t.user_id, t]));
-
-  // Reading a thread (it's open) counts as seen, including messages that
-  // arrive while it stays open.
-  useEffect(() => {
-    if (!chatTarget) return;
-    const t = threadByUser.get(chatTarget.user_id);
-    if (t) markSeen(chatTarget.user_id, t.customer_message_count);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatTarget, threads]);
-
-  // Alert when a new message lands while the marshal is on this page: a toast
-  // and a short buzz on phones that support it. Waits for the first successful
-  // load so messages that were already there don't announce themselves.
-  const prevUnread = useRef<number | null>(null);
-  useEffect(() => {
-    prevUnread.current = null;
-  }, [rideId]);
-  useEffect(() => {
-    if (!threadsLoaded) return;
-    if (prevUnread.current !== null && unreadTotal > prevUnread.current) {
-      const newest = threads
-        .filter((t) => unreadByUser[t.user_id] && t.user_id !== chatTarget?.user_id)
-        .sort((a, b) => b.last_at.localeCompare(a.last_at))[0];
-      if (newest) {
-        const who = passengersRef.current.find((p) => p.user_id === newest.user_id);
-        toast.info(`New message${who ? ` from ${who.first_name}` : ''}`, newest.last_message);
-        navigator.vibrate?.(200);
-      }
-    }
-    prevUnread.current = unreadTotal;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unreadTotal, threadsLoaded]);
-
-  // Opened from the header bell: open the rider's chat once their passenger
-  // row has loaded.
-  const location = useLocation();
-  const navigate = useNavigate();
-  useEffect(() => {
-    const st = location.state as { openChatUserId?: number } | null;
-    if (!st?.openChatUserId) return;
-    const p = passengers.find((x) => x.user_id === st.openChatUserId);
-    if (p) {
-      setChatTarget(p);
-      navigate(location.pathname, { replace: true, state: null });
-    }
-  }, [location.state, location.pathname, passengers, navigate]);
-
-  useEffect(() => {
-    const original = document.title;
-    if (unreadTotal > 0) document.title = `(${unreadTotal}) ${original.replace(/^\(\d+\)\s*/, '')}`;
-    return () => {
-      document.title = original;
-    };
-  }, [unreadTotal]);
 
   const closeBoardModal = () => {
     setBoardMode(null);
@@ -344,14 +297,9 @@ export function TripDetailPage() {
   const canBoard = isOpen(activeRide) && actionsUnlocked;
   const canStart = actionsUnlocked && (activeRide.status === 'scheduled' || activeRide.status === 'boarding');
   const canEnd = activeRide.status === 'active' || activeRide.status === 'boarding';
-  const visiblePassengers = passengers
-    .filter((p) =>
-      filter === 'all' ? true : filter === 'boarded' ? p.is_on_board : !p.is_on_board && p.status !== 'cancelled',
-    )
-    .sort((a, b) => (unreadByUser[b.user_id] ?? 0) - (unreadByUser[a.user_id] ?? 0));
-  const newestUnread = passengers
-    .filter((p) => unreadByUser[p.user_id])
-    .sort((a, b) => (threadByUser.get(b.user_id)?.last_at ?? '').localeCompare(threadByUser.get(a.user_id)?.last_at ?? ''))[0];
+  const visiblePassengers = passengers.filter((p) =>
+    filter === 'all' ? true : filter === 'boarded' ? p.is_on_board : !p.is_on_board && p.status !== 'cancelled',
+  );
   const pendingCount = activePassengers.length - boardedCount;
   const routeName =
     activeRide.route?.location?.name && activeRide.route.destination?.name
@@ -393,19 +341,6 @@ export function TripDetailPage() {
               />
             </div>
           </div>
-
-          {unreadTotal > 0 && newestUnread && (
-            <button
-              onClick={() => setChatTarget(newestUnread)}
-              className="w-full flex items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm text-blue-900"
-            >
-              <span className="flex items-center gap-2 font-medium">
-                <MessageCircle className="w-4 h-4" />
-                {unreadTotal} new message{unreadTotal > 1 ? 's' : ''}
-              </span>
-              <span className="text-blue-700 font-medium">Open</span>
-            </button>
-          )}
 
           {isOpen(activeRide) ? (
             <div className="space-y-2">
@@ -608,12 +543,6 @@ export function TripDetailPage() {
                         {' · '}
                         Drop-off: {stopName(activeRide.route?.stops, p.dropoff_stop_id) ?? activeRide.route?.destination?.name ?? 'Final'}
                       </p>
-                      {threadByUser.get(p.user_id) && (
-                        <p className={cn('text-xs truncate mt-1', unreadByUser[p.user_id] ? 'text-blue-700 font-medium' : 'text-gray-500')}>
-                          {threadByUser.get(p.user_id)!.last_sender_type === 'marshal' ? 'You: ' : ''}
-                          {threadByUser.get(p.user_id)!.last_message}
-                        </p>
-                      )}
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <Badge variant={p.is_on_board ? 'success' : p.no_show_at ? 'danger' : 'gray'}>
@@ -653,15 +582,15 @@ export function TripDetailPage() {
                     <Button
                       className="flex-1 justify-center"
                       variant="outline"
+                      aria-label={p.phone ? `Message ${p.first_name} on WhatsApp` : 'No phone number'}
                       icon={<MessageCircle className="w-4 h-4" />}
-                      onClick={() => setChatTarget(p)}
+                      disabled={!p.phone}
+                      onClick={() => {
+                        const href = whatsappHref(p.phone);
+                        if (href) window.open(href, '_blank', 'noopener');
+                      }}
                     >
-                      Chat
-                      {unreadByUser[p.user_id] > 0 && (
-                        <span className="ml-0.5 rounded-full bg-red-600 text-white text-xs leading-none px-1.5 py-1">
-                          {unreadByUser[p.user_id]}
-                        </span>
-                      )}
+                      <span className="hidden sm:inline">WhatsApp</span>
                     </Button>
                     {p.status !== 'cancelled' && (
                       <Button
@@ -757,87 +686,10 @@ export function TripDetailPage() {
         confirmLabel="End Ride"
       />
 
-      {/* Chat */}
-      <ChatModal ride={activeRide} passenger={chatTarget} onClose={() => setChatTarget(null)} />
-
       {/* Issues */}
       <IssuesModal rideId={activeRide.id} issues={issues} open={issuesOpen} onClose={() => setIssuesOpen(false)} />
       <ReportIssueModal rideId={activeRide.id} open={reportOpen} onClose={() => setReportOpen(false)} />
     </div>
-  );
-}
-
-function ChatModal({ ride, passenger, onClose }: { ride: Ride; passenger: Passenger | null; onClose: () => void }) {
-  const [draft, setDraft] = useState('');
-  const toast = useToast();
-  const qc = useQueryClient();
-  const open = !!passenger;
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  const { data: messages = [] } = useQuery({
-    queryKey: ['chat', ride.id, passenger?.user_id],
-    queryFn: () => ridesApi.getChatMessages(ride.id, passenger!.user_id),
-    enabled: open,
-    refetchInterval: open ? 4_000 : false,
-  });
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: 'end' });
-  }, [messages.length, open]);
-
-  const sendMutation = useMutation({
-    mutationFn: (message: string) => ridesApi.sendChatMessage(ride.id, passenger!.user_id, message),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['chat', ride.id, passenger?.user_id] });
-      setDraft('');
-    },
-    onError: (e) => toast.error('Message not sent', getErrorMessage(e)),
-  });
-
-  return (
-    <Modal open={open} onClose={onClose} title={passenger ? `${passenger.first_name} ${passenger.last_name}` : 'Chat'} size="md">
-      <div className="flex flex-col gap-3">
-        <div className="h-[50dvh] sm:h-80 overflow-y-auto flex flex-col gap-2 bg-gray-50 rounded-lg p-3">
-          {messages.length === 0 && (
-            <p className="text-sm text-gray-400 text-center my-auto">No messages yet — say hello.</p>
-          )}
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={cn(
-                'max-w-[80%] rounded-lg px-3 py-2 text-sm',
-                m.sender_type === 'marshal'
-                  ? 'self-end bg-primary-600 text-white'
-                  : 'self-start bg-white border border-gray-200 text-gray-800',
-              )}
-            >
-              {m.message}
-            </div>
-          ))}
-          <div ref={bottomRef} />
-        </div>
-        <div className="flex items-center gap-2">
-          {/* text-base on phones: iOS Safari zooms the page on focus for inputs under 16px */}
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && draft.trim()) sendMutation.mutate(draft.trim());
-            }}
-            placeholder="Type a message…"
-            className="flex-1 min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-          <Button
-            icon={<Send className="w-4 h-4" />}
-            disabled={!draft.trim()}
-            loading={sendMutation.isPending}
-            onClick={() => draft.trim() && sendMutation.mutate(draft.trim())}
-          >
-            <span className="hidden sm:inline">Send</span>
-          </Button>
-        </div>
-      </div>
-    </Modal>
   );
 }
 

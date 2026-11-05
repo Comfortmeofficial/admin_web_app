@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge, statusBadge } from '@/components/ui/Badge';
 import { PageSpinner } from '@/components/ui/Spinner';
 import { Modal } from '@/components/ui/Modal';
-import { Input, Textarea } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
@@ -51,7 +51,7 @@ function parseBookingQr(data: string): { bookingId: number; reference: string } 
   return { bookingId, reference: parts.slice(2).join(':') };
 }
 
-type BoardMode = { kind: 'scan' } | { kind: 'passenger'; passenger: Passenger };
+type BoardMode = 'scan';
 type PassengerFilter = 'pending' | 'boarded' | 'all';
 
 export function TripDetailPage() {
@@ -59,8 +59,6 @@ export function TripDetailPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const [boardMode, setBoardMode] = useState<BoardMode | null>(null);
-  const [boardCode, setBoardCode] = useState('');
-  const [manualEntry, setManualEntry] = useState(false);
   const [scanFeedback, setScanFeedback] = useState<string | null>(null);
   const [justBoarded, setJustBoarded] = useState<string | null>(null);
   const [scanKey, setScanKey] = useState(0);
@@ -161,8 +159,6 @@ export function TripDetailPage() {
 
   const closeBoardModal = () => {
     setBoardMode(null);
-    setBoardCode('');
-    setManualEntry(false);
     setScanFeedback(null);
     setJustBoarded(null);
   };
@@ -174,15 +170,11 @@ export function TripDetailPage() {
       qc.invalidateQueries({ queryKey: ['ride-passengers', rideId] });
       qc.invalidateQueries({ queryKey: ['rides', 'mine'] });
       toast.success(`${vars.name} boarded`);
-      if (boardMode?.kind === 'scan') {
-        // Keep the camera going so the next passenger can be scanned straight away.
-        setJustBoarded(vars.name);
-        setScanFeedback(null);
-        setScanKey((k) => k + 1);
-        setTimeout(() => setJustBoarded(null), 3000);
-      } else {
-        closeBoardModal();
-      }
+      // Keep the camera going so the next passenger can be scanned straight away.
+      setJustBoarded(vars.name);
+      setScanFeedback(null);
+      setScanKey((k) => k + 1);
+      setTimeout(() => setJustBoarded(null), 3000);
     },
     onError: (e) => {
       toast.error('Failed', getErrorMessage(e));
@@ -191,10 +183,22 @@ export function TripDetailPage() {
     },
   });
 
-  // Runs the camera scanner whenever the board modal is open in scan mode;
-  // torn down on close/manual-toggle so the camera light doesn't stay on.
+  // One click, no QR scan or boarding code — the marshal's already
+  // identifying the right person by picking them off the manifest.
+  const boardDirectMutation = useMutation({
+    mutationFn: ({ bookingId }: { bookingId: string; name: string }) => bookingsApi.boardDirect(bookingId),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['ride-passengers', rideId] });
+      qc.invalidateQueries({ queryKey: ['rides', 'mine'] });
+      toast.success(`${vars.name} boarded`);
+    },
+    onError: (e) => toast.error('Failed', getErrorMessage(e)),
+  });
+
+  // Runs the camera scanner whenever the board modal is open; torn down on
+  // close so the camera light doesn't stay on.
   useEffect(() => {
-    if (!boardMode || manualEntry) return;
+    if (!boardMode) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -206,16 +210,9 @@ export function TripDetailPage() {
           setScanFeedback('Not a valid boarding QR code.');
           return;
         }
-        const target =
-          boardMode.kind === 'passenger'
-            ? boardMode.passenger
-            : passengersRef.current.find((p) => p.booking_id === parsed.bookingId);
+        const target = passengersRef.current.find((p) => p.booking_id === parsed.bookingId);
         if (!target) {
           setScanFeedback("That ticket isn't for this trip.");
-          return;
-        }
-        if (parsed.bookingId !== target.booking_id) {
-          setScanFeedback('That QR belongs to a different passenger.');
           return;
         }
         const name = `${target.first_name} ${target.last_name}`.trim();
@@ -240,7 +237,7 @@ export function TripDetailPage() {
       scanner.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boardMode, manualEntry, scanKey]);
+  }, [boardMode, scanKey]);
 
   const cancelMutation = useMutation({
     mutationFn: (bookingId: string) => bookingsApi.cancel(bookingId),
@@ -417,7 +414,7 @@ export function TripDetailPage() {
                   size="lg"
                   icon={<QrCode className="w-4 h-4" />}
                   className="w-full justify-center"
-                  onClick={() => setBoardMode({ kind: 'scan' })}
+                  onClick={() => setBoardMode('scan')}
                 >
                   Scan ticket to board
                 </Button>
@@ -632,7 +629,11 @@ export function TripDetailPage() {
                     <Button
                       className="w-full justify-center"
                       icon={<CheckCircle className="w-4 h-4" />}
-                      onClick={() => setBoardMode({ kind: 'passenger', passenger: p })}
+                      loading={boardDirectMutation.isPending && boardDirectMutation.variables?.bookingId === String(p.booking_id)}
+                      disabled={boardDirectMutation.isPending}
+                      onClick={() =>
+                        boardDirectMutation.mutate({ bookingId: String(p.booking_id), name: p.first_name })
+                      }
                     >
                       Board
                     </Button>
@@ -687,67 +688,29 @@ export function TripDetailPage() {
         </div>
       </div>
 
-      {/* Board modal */}
+      {/* Board modal — scanning only; boarding a specific passenger off the
+          manifest is a direct one-click action now (see boardDirectMutation),
+          no modal involved. */}
       <Modal
         open={!!boardMode}
         onClose={closeBoardModal}
-        title={boardMode?.kind === 'passenger' ? `Board ${boardMode.passenger.first_name}` : 'Scan ticket'}
+        title="Scan ticket"
         size="sm"
         footer={
-          manualEntry ? (
-            <>
-              <Button variant="outline" onClick={closeBoardModal}>Cancel</Button>
-              <Button
-                onClick={() =>
-                  boardMode?.kind === 'passenger' &&
-                  boardMutation.mutate({
-                    bookingId: String(boardMode.passenger.booking_id),
-                    code: boardCode,
-                    name: boardMode.passenger.first_name,
-                  })
-                }
-                loading={boardMutation.isPending}
-                disabled={!boardCode.trim()}
-              >
-                Confirm
-              </Button>
-            </>
-          ) : (
-            <Button variant="outline" onClick={closeBoardModal} className="w-full justify-center">
-              {boardMode?.kind === 'scan' ? 'Done' : 'Cancel'}
-            </Button>
-          )
+          <Button variant="outline" onClick={closeBoardModal} className="w-full justify-center">
+            Done
+          </Button>
         }
       >
-        {manualEntry ? (
-          <Input
-            label="Boarding Code"
-            placeholder="Ask the passenger for their booking reference"
-            value={boardCode}
-            onChange={(e) => setBoardCode(e.target.value)}
-          />
-        ) : (
-          <div className="flex flex-col items-center gap-3">
-            <p className="text-sm text-gray-500 text-center">
-              {boardMode?.kind === 'passenger'
-                ? `Scan the QR code on ${boardMode.passenger.first_name}’s phone.`
-                : 'Scan each passenger’s QR code. Keep scanning — the camera stays on.'}
-            </p>
-            <video ref={videoRef} className="w-full aspect-square rounded-lg bg-gray-900 object-cover" />
-            {justBoarded && <p className="text-sm text-green-600 font-medium text-center">✓ {justBoarded} boarded</p>}
-            {scanFeedback && <p className="text-sm text-red-600 text-center">{scanFeedback}</p>}
-            {boardMutation.isPending && <p className="text-sm text-gray-500">Confirming…</p>}
-          </div>
-        )}
-        {boardMode?.kind === 'passenger' && (
-          <button
-            type="button"
-            className="mt-4 text-sm text-primary-600 font-medium text-center w-full py-2"
-            onClick={() => { setManualEntry((v) => !v); setScanFeedback(null); }}
-          >
-            {manualEntry ? 'Scan QR code instead' : 'Enter code manually instead'}
-          </button>
-        )}
+        <div className="flex flex-col items-center gap-3">
+          <p className="text-sm text-gray-500 text-center">
+            Scan each passenger’s QR code. Keep scanning — the camera stays on.
+          </p>
+          <video ref={videoRef} className="w-full aspect-square rounded-lg bg-gray-900 object-cover" />
+          {justBoarded && <p className="text-sm text-green-600 font-medium text-center">✓ {justBoarded} boarded</p>}
+          {scanFeedback && <p className="text-sm text-red-600 text-center">{scanFeedback}</p>}
+          {boardMutation.isPending && <p className="text-sm text-gray-500">Confirming…</p>}
+        </div>
       </Modal>
 
       {/* Cancel confirm */}

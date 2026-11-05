@@ -39,6 +39,13 @@ export const bookingsApi = {
     await bookingClient.post(`/api/v1/bookings/${id}/board`, { code });
   },
 
+  // Marks a passenger on board straight from the manifest, no QR scan or
+  // boarding code needed — the marshal's already identifying the right
+  // person by picking them off the list.
+  boardDirect: async (id: string) => {
+    await bookingClient.post(`/api/v1/bookings/${id}/board-direct`);
+  },
+
   markNoShow: async (id: string) => {
     await bookingClient.post(`/api/v1/bookings/${id}/no-show`);
   },
